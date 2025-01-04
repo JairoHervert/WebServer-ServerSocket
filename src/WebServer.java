@@ -1,6 +1,7 @@
 import java.io.*;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
 import java.text.Normalizer;
 import java.util.Date;
@@ -41,6 +42,8 @@ public class WebServer {
    // Tabla de códigos de estado HTTP y sus mensajes
    private static final Map<Integer, String> HTTP_STATUS_CODES = new HashMap<>() {{
       put(200, "OK");
+      put(301, "Moved Permanently");
+      put(302, "Found");
       put(400, "Bad Request");
       put(404, "Not Found");
       put(405, "Method Not Allowed");
@@ -95,7 +98,7 @@ public class WebServer {
             if (parts.length != 3) {
                System.err.println("Solicitud HTTP mal formada.");
                
-               String badRequestResponse = createHead(400, "text/plain", 0);
+               String badRequestResponse = CreateHead(400, "text/plain", 0);
                badRequestResponse += "Solicitud HTTP mal formada";
                
                dataOutput.write(badRequestResponse.getBytes(StandardCharsets.UTF_8));
@@ -186,6 +189,9 @@ public class WebServer {
    
    public String GETHandler(String resource, DataOutputStream dataOutput, String body, String response) {
       
+      // Decodificar el recurso (URL) para evitar problemas con caracteres especiales y acentos
+      resource = URLDecoder.decode(resource, StandardCharsets.UTF_8);
+      
       // Si la petición contiene parámetros
       if (resource.contains("?")) {
          System.out.println("Petición con parámetros");
@@ -201,7 +207,7 @@ public class WebServer {
          }
          
          // Crear la respuesta HTTP
-         response = createHead(200, "text/plain", body.length());
+         response = CreateHead(200, "text/plain", body.length());
          response += body;
          return response;
       }
@@ -234,20 +240,16 @@ public class WebServer {
             body = Normalizer.normalize(body, Normalizer.Form.NFD);
             body = body.replaceAll("[^\\p{ASCII}]", "");
             
-            response = createHead(200, "text/plain", body.length());
+            response = CreateHead(200, "text/plain", body.length());
             response += body;
             
          } else if (file.exists() && file.isDirectory() && resource.charAt(resource.length() - 1) != '/') { // Si el recurso es un directorio y no termina en /
             // Simulación de redireccionamiento
-            response = "HTTP/1.1 301 Moved Permanently\r\n"
-                    + "Location: " + resource + "/\r\n"  // Redireccionar al directorio agregando la barra final
-                    + "Content-Type: text/plain\r\n"
-                    + "Content-Length: 0\r\n"
-                    + "\r\n";
+            response = CreateHeadRedirect(301, "text/plain", 0, resource);
          } else {
             System.out.println("Archivo no encontrado: " + file.getName());
             body = "Archivo o recurso no encontrado";
-            response = createHead(404, "text/plain", body.length());
+            response = CreateHead(404, "text/plain", body.length());
             response += body;
          }
       }
@@ -257,10 +259,7 @@ public class WebServer {
    }
    
    // Metodo para crear una respuesta HTTP (cabecera)
-   public String createHead(int statusCode, String mimeType, long fileSize) {
-      
-      String statusMessage = HTTP_STATUS_CODES.get(statusCode);
-      
+   public String CreateHead(int statusCode, String mimeType, long fileSize) {
       return "HTTP/1.1 " + statusCode + " " + HTTP_STATUS_CODES.get(statusCode) + "\r\n"
               + "Server: Hervert Server/1.0\r\n"
               + "Date: " + new Date() + "\r\n"
@@ -268,6 +267,18 @@ public class WebServer {
               + "Content-Length: " + fileSize + "\r\n"
               + "Connection: close\r\n"
               + "\r\n";
+   }
+   
+   // Metodo para crear una respuesta HTTP (cabecera) para redireccionamiento
+   public String CreateHeadRedirect(int statusCode, String mimeType, long fileSize, String location) {
+         return "HTTP/1.1 " + statusCode + " " + HTTP_STATUS_CODES.get(statusCode) + "\r\n"
+               + "Server: Hervert Server/1.0\r\n"
+               + "Date: " + new Date() + "\r\n"
+               + "Content-Type: " + mimeType + "\r\n"
+               + "Content-Length: " + fileSize + "\r\n"
+               + "Location: " + location + "/\r\n"
+               + "Connection: close\r\n"
+               + "\r\n";
    }
    
    // Metodo para enviar un archivo al cliente (GET)
@@ -293,7 +304,7 @@ public class WebServer {
          System.out.println("Mime type: " + mimeType);
          
          // Crear la respuesta HTTP
-         String response = createHead(200, mimeType, file.length());
+         String response = CreateHead(200, mimeType, file.length());
          
          // Enviar la respuesta HTTP sin el archivo
          dataOutput.write(response.getBytes(StandardCharsets.UTF_8));

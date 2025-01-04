@@ -27,12 +27,3 @@ bin/
 
 ### Mac OS ###
 .DS_Store
-
-### Archivos específicos ###
-captura_HTTP.pdf
-pdf.pdf
-shaq.jpg
-zoo.jpg
-
-### Carpeta específica ###
-pro/
