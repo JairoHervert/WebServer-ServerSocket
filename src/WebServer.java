@@ -4,11 +4,16 @@ import java.io.IOException;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.nio.charset.StandardCharsets;
+import java.util.concurrent.Executor;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 public class WebServer {
    
    int PORT = 8000;
-   ServerSocket serverSocket;
+   private static final int THREAD_POOL_SIZE = 10; // Tamaño del pool de hilos
+   private ServerSocket serverSocket;
+   private ExecutorService threadPool;
    
    
    class Handler implements Runnable {
@@ -42,6 +47,7 @@ public class WebServer {
             
             System.out.println("Tamaño de la petición: " + bytesRead);
             System.out.println("Petición recibida: \n" + "\u001B[33m" + request + "\u001B[0m");
+            System.out.println("Ejecutando el hilo: " + Thread.currentThread().getName());
             
             // Obtenemos el metodo, recurso y protocolo de la petición HTTP (que viene en la primera línea del request)
             String[] lines = request.split("\r\n");
@@ -133,15 +139,20 @@ public class WebServer {
    // Constructor
    public WebServer() throws IOException {
       System.out.println("\u001B[32mIniciando servidor web...\u001B[0m");
+      
+      // Crear el socket del servidor y el pool de hilos
       this.serverSocket = new ServerSocket(PORT);
+      this.threadPool = Executors.newFixedThreadPool(THREAD_POOL_SIZE);
+      
       System.out.println("Servidor web iniciado en el puerto \u001B[32m" + PORT + "\u001B[0m");
       System.out.println("\u001B[34mEsperando conexiones...\n\u001B[0m");
       
       while (true) {
          Socket socket = serverSocket.accept();
          System.out.println("Conexión aceptada desde \u001B[35m" + socket.getInetAddress() + "\u001B[0m");
-         Handler handler = new Handler(socket);
-         new Thread(handler).start();
+         
+         // Asigna la conexión aceptada a un hilo del pool
+         threadPool.execute(new Handler(socket));
       }
       
    }
