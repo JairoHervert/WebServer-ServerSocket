@@ -41,6 +41,8 @@ public class WebServer {
       put("doc", "application/msword");
       put("xls", "application/vnd.ms-excel");
       put("ppt", "application/vnd.ms-powerpoint");
+      put("mp3", "audio/mpeg");
+      put("tex", "application/x-tex");
    }};
    
    // Tabla de códigos de estado HTTP y sus mensajes
@@ -70,20 +72,34 @@ public class WebServer {
             dataOutput = new DataOutputStream(socket.getOutputStream());
             dataInput = new DataInputStream(socket.getInputStream());
             
+            ByteArrayOutputStream auxBuffer = new ByteArrayOutputStream();
+            ByteArrayOutputStream bodyBuffer = new ByteArrayOutputStream();
             byte[] buffer = new byte[65536]; // 64 KB
-            int bytesRead = dataInput.read(buffer);
+            int bytesRead = 0;
+            int totalBytesReceived = 0;
+            
+            while ((bytesRead = dataInput.read(buffer)) != -1) {
+               auxBuffer.write(buffer, 0, bytesRead);
+               totalBytesReceived += bytesRead;
+               
+               // Si el buffer contiene la secuencia \r\n\r\n, entonces se ha recibido toda la petición
+               if (auxBuffer.toString(StandardCharsets.UTF_8).contains("\r\n\r\n")) break;
+            }
             
             // Como postman (y algunos navegadores) envían una petición adicional por el keep-alive la desactivamos por ahora
-            if (bytesRead < 1) {
+            if (totalBytesReceived < 1) {
                System.out.println("Conexión de keep-alive detectada. Cerrando conexión sin datos...");
                socket.close();
                return;
             }
             
-            // Convertimos los bytes recibidos a una cadena
-            String request = new String(buffer, 0, bytesRead);
+            // Copiamos el cuerpo de la petición a un buffer separado
+            bodyBuffer.write(auxBuffer.toByteArray(), auxBuffer.toString(StandardCharsets.UTF_8).lastIndexOf("\r\n\r\n") + 4, totalBytesReceived - auxBuffer.toString(StandardCharsets.UTF_8).lastIndexOf("\r\n\r\n") - 4);
             
-            System.out.println("Tamaño de la petición: " + bytesRead);
+            // Convertimos los bytes recibidos a una cadena
+            String request = auxBuffer.toString(StandardCharsets.UTF_8);
+            
+            System.out.println("Tamaño de la petición: " + totalBytesReceived + " bytes");
             System.out.println("Petición recibida: \n" + "\u001B[33m" + request + "\u001B[0m");
             System.out.println("Ejecutando en el hilo: " + Thread.currentThread().getName());
             
@@ -117,7 +133,7 @@ public class WebServer {
                   break;
                
                case "POST":
-                  responseForClient = POSTHandler(request, dataInput);
+                  responseForClient = POSTHandler(request, bodyBuffer);
                   break;
                
                case "PUT":
@@ -252,7 +268,7 @@ public class WebServer {
    
    // La petición HTTP POST se utiliza para enviar datos al servidor para que procese una acción específica. Ej:
    // Enviar datos de un formulario HTML al servidor, agregar un nuevo registro a una base de datos, realizar un pago, autenticar a un usuario, etc.
-   public String POSTHandler(String request, DataInputStream dataInput) throws IOException {
+   public String POSTHandler(String request, ByteArrayOutputStream bodyBuffer) {
       String[] requestParts = request.split("\r\n");
       int contentLength = 0;
       String bodyRequest = "";
@@ -270,8 +286,6 @@ public class WebServer {
       
       // Si la petición tiene cuerpo crear una respuesta según el tipo de contenido
       if (contentLength > 0) {
-         //bodyRequest = URLDecoder.decode(request.substring(request.lastIndexOf("\r\n\r\n") + 4), StandardCharsets.UTF_8);
-         
          switch (contentType) {
             case "application/x-www-form-urlencoded":
                // Extraer los parámetros del cuerpo de la petición y agregarlos al cuerpo de la respuesta
@@ -294,6 +308,10 @@ public class WebServer {
                   bodyRequest = DeleteAcents(bodyRequest);
                   response = CreateHead(200, "application/json", bodyRequest.length());
                   response += bodyRequest;
+                  
+                  // Guardar el archivo JSON en el servidor
+                  saveFile("archivo" + System.currentTimeMillis() + ".json", bodyRequest.getBytes());
+                  
                } else {
                   bodyRequest = "JSON mal formado";
                   response = CreateHead(400, "text/plain", bodyRequest.length());
@@ -335,10 +353,11 @@ public class WebServer {
                break;
                
             default:
-               bodyRequest = "Tipo de contenido no soportado";
-               response = CreateHead(400, "text/plain", bodyRequest.length());
+               bodyRequest = "Como el tipo de contenido no es soportado, se almacenara en el servidor";
+               saveFile("archivo_" + System.currentTimeMillis() + "." + getKeyByValue(MIME_TYPES, contentType), bodyBuffer.toByteArray());
+               response = CreateHead(200, "text/plain", bodyRequest.length());
                response += bodyRequest;
-               return response;
+               break;
          }
       } else {
          bodyRequest = "Peticion POST sin cuerpo";
@@ -416,6 +435,25 @@ public class WebServer {
       } catch (IOException e) {
          e.printStackTrace();
       }
+   }
+   
+   public void saveFile(String fileName, byte[] fileBytes) {
+      try (FileOutputStream fileOutput = new FileOutputStream(fileName)) {
+         fileOutput.write(fileBytes);
+      } catch (IOException e) {
+         e.printStackTrace();
+      }
+   }
+
+   
+   // Metodo para obtener la clave de un valor en un mapa, util para extraer la extensión de un archivo a partir de su mime type
+   public static String getKeyByValue(Map<String, String> map, String value) {
+      for (Map.Entry<String, String> entry : map.entrySet()) {
+         if (entry.getValue().equals(value)) {
+            return entry.getKey();
+         }
+      }
+      return "";  // Si no se encuentra el valor, se retorna una cadena vacía
    }
    
    public static boolean isValidJson(String json) {
