@@ -1,0 +1,14 @@
+{
+  "gatos": [
+    {
+      "raza": "Siamés",
+      "caracteristicas": {
+        "tamaño": "Mediano",
+        "peso_promedio": "3-6 kg",
+        "esperanza_de_vida": "12-15 años",
+        "temperamento": ["Vocal", "Cariñoso", "Curioso"],
+        "nivel_de_actividad": "Alto"
+      }
+    }
+  ]
+}

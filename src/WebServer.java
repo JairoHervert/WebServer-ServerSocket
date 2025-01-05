@@ -1,6 +1,4 @@
 import com.google.gson.JsonParser;
-import javax.script.ScriptEngine;
-import javax.script.ScriptEngineManager;
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
 import java.io.*;
@@ -140,11 +138,7 @@ public class WebServer {
                   break;
                
                case "PUT":
-                  responseForClient = "HTTP/1.1 200 OK\r\n"
-                          + "Content-Type: text/plain\r\n"
-                          + "Content-Length: 27\r\n"
-                          + "\r\n"
-                          + "Hello World! desde un PUT";
+                  responseForClient = PUTHandler(request, resource, bodyBuffer);
                   break;
                
                case "DELETE":
@@ -413,7 +407,7 @@ public class WebServer {
                
             case "text/plain":
                if (!resource.equals("/")) {
-                  int statusUpdateFile = updateFileText(resource.substring(1), URLDecoder.decode(request.substring(request.lastIndexOf("\r\n\r\n") + 4), StandardCharsets.UTF_8));
+                  int statusUpdateFile = updateFileText(resource.substring(1), URLDecoder.decode(request.substring(request.lastIndexOf("\r\n\r\n") + 4), StandardCharsets.UTF_8), false);
                   if (statusUpdateFile == 200) {
                      bodyRequest = "Archivo actualizado";
                      response = CreateHead(200, "text/plain", bodyRequest.length());
@@ -446,6 +440,100 @@ public class WebServer {
          response += bodyRequest;
       }
 
+      return response;
+   }
+   
+   // La petición HTTP PUT se utiliza para enviar datos al servidor para que procese una acción específica, es una petición idempotente.
+   // Generalmente, la URL (o URI) especificada en la petición indica la ubicación exacta del recurso que se está creando o actualizando.
+   // Los datos enviados al servidor, usualmente en el cuerpo de la solicitud, deben estar en un formato que el servidor pueda interpretar, json por ejemplo.
+   // Ej: Actualizar un recurso, reemplazar un recurso, crear un recurso si no existe, etc.
+   public String PUTHandler(String request, String resource, ByteArrayOutputStream bodyBuffer) {
+      String response = "";
+      String bodyRequest = "";
+      
+      // Si la petición no tiene cuerpo se envía un mensaje de error
+      if (bodyBuffer.size() < 1) {
+         bodyRequest = "Peticion PUT sin cuerpo";
+         response = CreateHead(400, "text/plain", bodyRequest.length());
+         response += bodyRequest;
+         return response;
+      }
+      
+      // Extraemos el recurso solicitado
+      resource = resource.substring(1);
+      System.out.println("resource = " + resource);
+      
+      // si el recurso es un directorio se envía un mensaje de error
+      File fileResource = new File(resource);
+      if (fileResource.isDirectory()) {
+         bodyRequest = "No se puede actualizar un directorio";
+         response = CreateHead(400, "text/plain", bodyRequest.length());
+         response += bodyRequest;
+         return response;
+      }
+      
+      // Extraer el Content-Type de la petición
+      String contentType = "";
+      String[] requestParts = request.split("\r\n");
+      for (String part : requestParts) {
+         if (part.contains("Content-Type")) contentType = part.split(":")[1].trim();
+      }
+      
+      // Si el Content-Type no es Json o txt, se envía un mensaje de error
+      if (!contentType.equals("application/json") && !contentType.equals("text/plain")) {
+         bodyRequest = "Tipo de contenido no soportado";
+         response = CreateHead(400, "text/plain", bodyRequest.length());
+         response += bodyRequest;
+         return response;
+      }
+      
+      // verificar que el recurso y el Content-Type coincidan
+      if ((contentType.equals("application/json") && !resource.endsWith(".json")) || (contentType.equals("text/plain") && !resource.endsWith(".txt"))) {
+         bodyRequest = "El recurso y el Content-Type no coinciden";
+         response = CreateHead(400, "text/plain", bodyRequest.length());
+         response += bodyRequest;
+         return response;
+      }
+      
+      // Si el Content-Type es Json, se verifica que el contenido sea válido
+      String json = new String(bodyBuffer.toByteArray(), StandardCharsets.UTF_8);
+      if (contentType.equals("application/json")) {
+         if (!isValidJson(json)) {
+            bodyRequest = "JSON mal formado";
+            response = CreateHead(400, "text/plain", bodyRequest.length());
+            response += bodyRequest;
+            return response;
+         }
+      }
+      
+      // si el archivo no existe lo creamos
+      if (!fileResource.exists()) {
+         try {
+            fileResource.createNewFile();
+            System.out.println("Archivo creado: " + fileResource.getName());
+         } catch (IOException e) {
+            e.printStackTrace();
+            bodyRequest = "Error al crear el archivo";
+            response = CreateHead(500, "text/plain", bodyRequest.length());
+            response += bodyRequest;
+            return response;
+         }
+      }
+      
+      // Guardar el contenido del archivo
+      try {
+         saveFile(resource, bodyBuffer.toByteArray());
+         bodyRequest = "Archivo actualizado";
+         response = CreateHead(200, "text/plain", bodyRequest.length());
+         response += bodyRequest;
+      } catch (Exception e) {
+         e.printStackTrace();
+         bodyRequest = "Error al guardar el archivo";
+         response = CreateHead(500, "text/plain", bodyRequest.length());
+         response += bodyRequest;
+         return response;
+      }
+      
       return response;
    }
    
@@ -586,19 +674,22 @@ public class WebServer {
       }
    }
    
-   public int updateFileText(String fileName, String text) {
+   public int updateFileText(String fileName, String text, boolean replace) {
       // Actualizar el contenido de un archivo solo si existe y es de texto
       File file = new File(fileName);
       
-      if (file.exists() && file.isFile() && fileName.contains(".txt")) {
-         try (BufferedWriter writer = new BufferedWriter(new FileWriter(fileName))) {
+      if (file.exists() && file.isFile() && fileName.endsWith(".txt")) { // Mejor usar endsWith para mayor precisión
+         try (BufferedWriter writer = new BufferedWriter(new FileWriter(file, !replace))) {
+            // Si replace es true, el archivo se abre en modo de sobrescritura.
+            // Si replace es false, el archivo se abre en modo de append.
             writer.write(text);
          } catch (IOException e) {
             e.printStackTrace();
+            return 500; // Código de error para problemas del servidor
          }
-         return 200;
+         return 200; // Código de éxito
       } else {
-         return 404;
+         return 404; // Código de error para archivo no encontrado
       }
    }
 
