@@ -1,0 +1,44 @@
+{
+  "silent_hill": [
+    {
+      "titulo": "Silent Hill",
+      "plataforma": ["PlayStation"],
+      "lanzamiento": "1999-02-23",
+      "descripcion": "El primer juego de la saga, donde Harry Mason busca a su hija Cheryl en el misterioso pueblo de Silent Hill.",
+      "genero": ["Survival Horror"],
+      "protagonista": "Harry Mason"
+    },
+    {
+      "titulo": "Silent Hill 2",
+      "plataforma": ["PlayStation 2", "Xbox", "PC"],
+      "lanzamiento": "2001-09-24",
+      "descripcion": "James Sunderland recibe una carta de su difunta esposa, llevándolo al pueblo de Silent Hill en busca de respuestas.",
+      "genero": ["Survival Horror", "Psicológico"],
+      "protagonista": "James Sunderland"
+    },
+    {
+      "titulo": "Silent Hill 3",
+      "plataforma": ["PlayStation 2", "PC"],
+      "lanzamiento": "2003-05-23",
+      "descripcion": "Heather Mason se enfrenta a los horrores de Silent Hill mientras descubre su conexión con los eventos del primer juego.",
+      "genero": ["Survival Horror"],
+      "protagonista": "Heather Mason"
+    },
+    {
+      "titulo": "Silent Hill 4: The Room",
+      "plataforma": ["PlayStation 2", "Xbox", "PC"],
+      "lanzamiento": "2004-06-17",
+      "descripcion": "Henry Townshend está atrapado en su apartamento, conectado a dimensiones de pesadilla a través de un misterioso agujero en la pared.",
+      "genero": ["Survival Horror", "Psicológico"],
+      "protagonista": "Henry Townshend"
+    },
+    {
+      "titulo": "Silent Hill: Homecoming",
+      "plataforma": ["PlayStation 3", "Xbox 360", "PC"],
+      "lanzamiento": "2008-09-30",
+      "descripcion": "Alex Shepherd regresa a su hogar en Shepherd's Glen, enfrentándose a los misterios del pueblo y su relación con Silent Hill.",
+      "genero": ["Survival Horror"],
+      "protagonista": "Alex Shepherd"
+    }
+  ]
+}

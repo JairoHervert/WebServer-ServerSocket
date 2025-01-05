@@ -479,16 +479,10 @@ public class WebServer {
          if (part.contains("Content-Type")) contentType = part.split(":")[1].trim();
       }
       
-      // Si el Content-Type no es Json o txt, se envía un mensaje de error
-      if (!contentType.equals("application/json") && !contentType.equals("text/plain")) {
-         bodyRequest = "Tipo de contenido no soportado";
-         response = CreateHead(400, "text/plain", bodyRequest.length());
-         response += bodyRequest;
-         return response;
-      }
-      
       // verificar que el recurso y el Content-Type coincidan
-      if ((contentType.equals("application/json") && !resource.endsWith(".json")) || (contentType.equals("text/plain") && !resource.endsWith(".txt"))) {
+      String extension = resource.substring(resource.lastIndexOf(".") + 1);
+      if (!contentType.equals(MIME_TYPES.get(extension))) {
+         System.out.println("El recurso y el Content-Type no coinciden");
          bodyRequest = "El recurso y el Content-Type no coinciden";
          response = CreateHead(400, "text/plain", bodyRequest.length());
          response += bodyRequest;

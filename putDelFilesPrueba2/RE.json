@@ -1,0 +1,58 @@
+{
+  "resident_evil": [
+    {
+      "titulo": "Resident Evil",
+      "anio_lanzamiento": 1996,
+      "plataformas": ["PlayStation", "Sega Saturn", "PC"],
+      "descripcion": "El primer juego de la serie, donde Chris Redfield y Jill Valentine investigan una mansión llena de misterios y zombis en las montañas Arklay."
+    },
+    {
+      "titulo": "Resident Evil 2",
+      "anio_lanzamiento": 1998,
+      "plataformas": ["PlayStation", "Nintendo 64", "Dreamcast", "PC"],
+      "descripcion": "Leon S. Kennedy y Claire Redfield luchan por sobrevivir en Raccoon City tras un brote del Virus-T."
+    },
+    {
+      "titulo": "Resident Evil 3: Nemesis",
+      "anio_lanzamiento": 1999,
+      "plataformas": ["PlayStation", "Dreamcast", "PC", "GameCube"],
+      "descripcion": "Jill Valentine intenta escapar de Raccoon City mientras es perseguida por el implacable Nemesis."
+    },
+    {
+      "titulo": "Resident Evil Code: Veronica",
+      "anio_lanzamiento": 2000,
+      "plataformas": ["Dreamcast", "PlayStation 2", "GameCube"],
+      "descripcion": "Claire y Chris Redfield enfrentan los horrores de la Corporación Umbrella en una isla remota y en la Antártida."
+    },
+    {
+      "titulo": "Resident Evil 4",
+      "anio_lanzamiento": 2005,
+      "plataformas": ["GameCube", "PlayStation 2", "PC", "Xbox", "PlayStation 4"],
+      "descripcion": "Leon S. Kennedy investiga el secuestro de la hija del presidente en una aldea infestada de plagas en Europa."
+    },
+    {
+      "titulo": "Resident Evil 5",
+      "anio_lanzamiento": 2009,
+      "plataformas": ["PlayStation 3", "Xbox 360", "PC"],
+      "descripcion": "Chris Redfield y Sheva Alomar luchan contra un brote biológico en África causado por el Uroboros."
+    },
+    {
+      "titulo": "Resident Evil 6",
+      "anio_lanzamiento": 2012,
+      "plataformas": ["PlayStation 3", "Xbox 360", "PC"],
+      "descripcion": "Un juego con múltiples historias que involucran a Leon, Chris, Ada Wong y nuevos personajes enfrentando el C-Virus."
+    },
+    {
+      "titulo": "Resident Evil 7: Biohazard",
+      "anio_lanzamiento": 2017,
+      "plataformas": ["PlayStation 4", "Xbox One", "PC"],
+      "descripcion": "Ethan Winters busca a su esposa desaparecida en una aterradora mansión en Luisiana, donde enfrenta el peligroso Virus-Mold."
+    },
+    {
+      "titulo": "Resident Evil Village",
+      "anio_lanzamiento": 2021,
+      "plataformas": ["PlayStation 5", "PlayStation 4", "Xbox Series X|S", "PC"],
+      "descripcion": "Ethan Winters regresa para salvar a su hija en un misterioso pueblo lleno de horrores, enfrentando a Lady Dimitrescu y otros enemigos."
+    }
+  ]
+}

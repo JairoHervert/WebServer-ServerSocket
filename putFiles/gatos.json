@@ -1,6 +1,16 @@
 {
   "gatos": [
     {
+      "raza": "Maine Coon",
+      "caracteristicas": {
+        "tamaño": "Grande",
+        "peso_promedio": "5-8 kg",
+        "esperanza_de_vida": "10-13 años",
+        "temperamento": ["Amigable", "Cariñoso", "Juguetón"],
+        "nivel_de_actividad": "Moderado"
+      }
+    },
+    {
       "raza": "Siamés",
       "caracteristicas": {
         "tamaño": "Mediano",
@@ -8,6 +18,16 @@
         "esperanza_de_vida": "12-15 años",
         "temperamento": ["Vocal", "Cariñoso", "Curioso"],
         "nivel_de_actividad": "Alto"
+      }
+    },
+    {
+      "raza": "Bengala",
+      "caracteristicas": {
+        "tamaño": "Mediano",
+        "peso_promedio": "4-7 kg",
+        "esperanza_de_vida": "12-16 años",
+        "temperamento": ["Activo", "Inteligente", "Curioso"],
+        "nivel_de_actividad": "Muy Alto"
       }
     }
   ]
