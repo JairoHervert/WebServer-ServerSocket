@@ -1,3 +1,6 @@
+import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
+import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
@@ -142,11 +145,7 @@ public class WebServer {
                   break;
                
                case "DELETE":
-                  responseForClient = "HTTP/1.1 200 OK\r\n"
-                          + "Content-Type: text/plain\r\n"
-                          + "Content-Length: 30\r\n"
-                          + "\r\n"
-                          + "Hello World! desde un DELETE";
+                  responseForClient = DELETEHandler(resource);
                   break;
                
                default:
@@ -530,6 +529,170 @@ public class WebServer {
       
       return response;
    }
+   
+   
+   // Las peticiones HTTP DELETE se utilizan para eliminar recursos del servidor. Es una petición idempotente.
+   // Ej: Eliminar un recurso, eliminar un registro de una base de datos, eliminar un archivo, etc.
+   public String DELETEHandler(String resource) {
+      String response = "";
+      String bodyResponse = "";
+      
+      resource = resource.substring(1); // Eliminar la barra inicial
+      System.out.println("Recurso solicitado a eliminar: " + resource);
+      
+      // si en este punto no se entra a ningun if, se verifica si la solicitud implica eliminar un dato de algun archivo txt o json
+      String[] partsOfResource = resource.split("/");
+      int indexResourceFile = 0;
+      String resourceFile = "";
+      String resourceToDelete = "";
+      int index = 1;
+      for (String part : partsOfResource) {
+         resourceFile += part + "/";
+         if (part.contains(".")) {
+            indexResourceFile = index;
+            break;
+         }
+         index++;
+      }
+      resourceFile = resourceFile.substring(0, resourceFile.length() - 1); // Eliminar la última barra
+      resourceToDelete = partsOfResource[indexResourceFile];
+      
+      System.out.println("partOfResourceFile = " + indexResourceFile);
+      System.out.println("resourceLength = " + partsOfResource.length);
+      System.out.println("archivo principal = " + resourceFile);
+      System.out.println("archivo a eliminar = " + resourceToDelete);
+      
+      // si el archivo principal (con extension) no es el ultimo recurso, debemos eliminar un dato de un archivo txt o json
+      // si el archivo principal (con extension) es el ultimo recurso, se elimina el archivo
+      if (indexResourceFile < partsOfResource.length) {
+         if (resourceFile.endsWith(".txt")) {
+            response = deleteDataFromFile(resourceFile, resourceToDelete);
+            
+         } else if (resourceFile.endsWith(".json")) {
+            if (deleteDataFromJsonFile(new File(resourceFile), resourceToDelete)) {
+               bodyResponse = "Dato eliminado del archivo JSON";
+               response = CreateHead(200, "text/plain", bodyResponse.length());
+               response += bodyResponse;
+            } else {
+               bodyResponse = "Clave no encontrada en el archivo JSON";
+               response = CreateHead(404, "text/plain", bodyResponse.length());
+               response += bodyResponse;
+            }
+            
+         } else {
+            bodyResponse = "No se puede eliminar datos de un archivo de este tipo";
+            response = CreateHead(400, "text/plain", bodyResponse.length());
+            response += bodyResponse;
+         }
+         
+         return response;
+
+      } else {
+         // Si el recurso solicitado es un directorio, se envía un mensaje de error
+         File file = new File(resource);
+         if (file.isDirectory()) {
+            bodyResponse = "Por medidas de seguridad, no se permite eliminar directorios";
+            response = CreateHead(400, "text/plain", bodyResponse.length());
+            response += bodyResponse;
+            return response;
+         }
+         
+         // Si el archivo no existe, se envía un mensaje de error
+         if (!file.exists()) {
+            bodyResponse = "Archivo no encontrado";
+            response = CreateHead(404, "text/plain", bodyResponse.length());
+            response += bodyResponse;
+            return response;
+         }
+         
+         // Si el archivo existe, se elimina
+         if (file.delete()) {
+            bodyResponse = "Archivo eliminado";
+            response = CreateHead(200, "text/plain", bodyResponse.length());
+            response += bodyResponse;
+            return response;
+         } else {
+            bodyResponse = "Error al eliminar el archivo";
+            response = CreateHead(500, "text/plain", bodyResponse.length());
+            response += bodyResponse;
+            return response;
+         }
+      }
+   }
+   
+   public String deleteDataFromFile(String fileName, String dataToDelete) {
+      File file = new File(fileName);
+      String response = "";
+      String bodyResponse = "";
+      
+      if (file.exists() && file.isFile()) {
+         // Leer el contenido del archivo
+         String fileContent = "";
+         try (BufferedReader reader = new BufferedReader(new FileReader(fileName))) {
+            String line;
+            while ((line = reader.readLine()) != null) {
+               if (!line.contains(dataToDelete)) { // Si la línea no contiene el dato a eliminar, se agrega al contenido del archivo
+                  fileContent += line + "\n";
+               }
+            }
+         } catch (IOException e) {
+            e.printStackTrace();
+         }
+         
+         // Guardar el contenido actualizado en el archivo
+         try (BufferedWriter writer = new BufferedWriter(new FileWriter(fileName))) {
+            writer.write(fileContent);
+         } catch (IOException e) {
+            e.printStackTrace();
+         }
+         
+         bodyResponse = "Datos eliminados del archivo";
+         response = CreateHead(200, "text/plain", bodyResponse.length());
+         response += bodyResponse;
+      } else {
+         bodyResponse = "Archivo no encontrado";
+         response = CreateHead(404, "text/plain", bodyResponse.length());
+         response += bodyResponse;
+      }
+      
+      return response;
+   }
+   
+   public boolean deleteDataFromJsonFile(File file, String keyToDelete) {
+      boolean found = false;
+      
+      try (BufferedReader reader = new BufferedReader(new FileReader(file))) {
+         // Leer el contenido del archivo JSON
+         StringBuilder jsonContent = new StringBuilder();
+         String line;
+         
+         while ((line = reader.readLine()) != null) {
+            jsonContent.append(line);
+         }
+         
+         // Parsear el contenido como JSON
+         JsonObject jsonObject = JsonParser.parseString(jsonContent.toString()).getAsJsonObject();
+         
+         // Verificar si la clave existe
+         if (jsonObject.has(keyToDelete)) {
+            jsonObject.remove(keyToDelete); // Eliminar la clave
+            found = true;
+            
+            Gson gson = new GsonBuilder().setPrettyPrinting().create();
+            
+            // Guardar el JSON actualizado en el archivo
+            try (BufferedWriter writer = new BufferedWriter(new FileWriter(file))) {
+               writer.write(gson.toJson(jsonObject));
+            }
+         }
+      } catch (IOException e) {
+         e.printStackTrace();
+         return false; // Error durante el proceso
+      }
+      
+      return found; // Devuelve si la clave fue encontrada y eliminada
+   }
+   
    
    // Metodo para eliminar acentos y caracteres especiales de una cadena de texto. Util para evitar problemas con el envio de respuestas HTTP
    public String DeleteAcents(String text) {

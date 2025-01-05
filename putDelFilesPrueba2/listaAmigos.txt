@@ -1,6 +1,5 @@
-Pedro: amigo
-Luis: amigo
-Pedro: amigo
 Andres: conocido
 Jorge: conocido
 Lucia: amigo
+Rebeca: amigo
+Chema: amigo
