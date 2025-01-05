@@ -52,6 +52,7 @@ public class WebServer {
       put(301, "Moved Permanently");
       put(302, "Found");
       put(400, "Bad Request");
+      put(403, "Forbidden");
       put(404, "Not Found");
       put(405, "Method Not Allowed");
    }};
@@ -147,6 +148,10 @@ public class WebServer {
                case "DELETE":
                   responseForClient = DELETEHandler(resource);
                   break;
+                  
+               case "HEAD":
+                  responseForClient = headHandler(resource);
+                  break;
                
                default:
                   responseForClient = "HTTP/1.1 405 Method Not Allowed\r\n"
@@ -201,7 +206,7 @@ public class WebServer {
       // Si la petición contiene parámetros
       if (resource.contains("?")) {
          System.out.println("Petición con parámetros");
-         resource = resource.substring(resource.indexOf("?") + 1);   // Eliminar el recurso de la petición
+         resource = resource.substring(resource.indexOf("?") + 1);   // Eliminar el recurso de la petición y obtener solo los parámetros
          
          // Obtener los parámetros de la petición
          Map<String, String> parameters = getParameters(resource);
@@ -530,7 +535,6 @@ public class WebServer {
       return response;
    }
    
-   
    // Las peticiones HTTP DELETE se utilizan para eliminar recursos del servidor. Es una petición idempotente.
    // Ej: Eliminar un recurso, eliminar un registro de una base de datos, eliminar un archivo, etc.
    public String DELETEHandler(String resource) {
@@ -619,6 +623,48 @@ public class WebServer {
          }
       }
    }
+   
+   // Las cabeceras HTTP HEAD son similares a las cabeceras GET, pero no incluyen el cuerpo de la respuesta.
+   // Se utilizan para obtener información sobre un recurso sin tener que recuperar todo el contenido.
+   public String headHandler(String resource) {
+      String response = "";
+      
+      System.out.println("Petición HEAD con recurso: " + resource);
+      
+      // Si la solicitud es para la raíz o index.html
+      if (resource.equals("/") || resource.equals("/index.html") || resource.equals("/index.htm") || resource == null) {
+         File file = new File("index.html");
+         if (file.exists() && file.isFile()) {
+            response = CreateHead(200, "text/html", file.length());
+         } else {
+            response = CreateHead(404, "text/plain", 0);
+         }
+         return response;
+      }
+      
+      // Procesar otros recursos
+      resource = resource.substring(1); // Eliminar la barra inicial
+      System.out.println("Recurso solicitado: " + resource);
+      File file = new File(resource);
+      
+      if (file.isDirectory()) {
+         // Si el recurso es un directorio, devolver un error 403 Forbidden
+         response = CreateHead(403, "text/plain", 0);
+      } else if (file.exists() && file.isFile()) {
+         // Si el archivo existe, devolver 200 con los detalles
+         String mimeType = MIME_TYPES.get(resource.substring(resource.lastIndexOf(".") + 1));
+         if (mimeType == null) {
+            mimeType = "application/octet-stream"; // Tipo genérico si no está en el mapa
+         }
+         response = CreateHead(200, mimeType, file.length());
+      } else {
+         // Si el archivo no existe, devolver 404 Not Found
+         response = CreateHead(404, "text/plain", 0);
+      }
+      
+      return response;
+   }
+
    
    public String deleteDataFromFile(String fileName, String dataToDelete) {
       File file = new File(fileName);
