@@ -74,16 +74,19 @@ public class WebServer {
             
             ByteArrayOutputStream auxBuffer = new ByteArrayOutputStream();
             ByteArrayOutputStream bodyBuffer = new ByteArrayOutputStream();
-            byte[] buffer = new byte[65536]; // 64 KB
+            byte[] buffer = new byte[65535];
             int bytesRead = 0;
             int totalBytesReceived = 0;
             
-            while ((bytesRead = dataInput.read(buffer)) != -1) {
-               auxBuffer.write(buffer, 0, bytesRead);
-               totalBytesReceived += bytesRead;
-               
-               // Si el buffer contiene la secuencia \r\n\r\n, entonces se ha recibido toda la petición
-               if (auxBuffer.toString(StandardCharsets.UTF_8).contains("\r\n\r\n")) break;
+            socket.setSoTimeout(3000);
+            try {
+               while (true) {
+                  bytesRead = dataInput.read(buffer);
+                  auxBuffer.write(buffer, 0, bytesRead);
+                  totalBytesReceived += bytesRead;
+               }
+            } catch (Exception e) {
+               System.out.println("Tiempo de espera alcanzado. Finalizando recepción.");
             }
             
             // Como postman (y algunos navegadores) envían una petición adicional por el keep-alive la desactivamos por ahora
@@ -93,7 +96,7 @@ public class WebServer {
                return;
             }
             
-            // Copiamos el cuerpo de la petición a un buffer separado
+            // Copiamos el cuerpo de la petición a un buffer separado, se usa en POST si contiene un archivo
             bodyBuffer.write(auxBuffer.toByteArray(), auxBuffer.toString(StandardCharsets.UTF_8).lastIndexOf("\r\n\r\n") + 4, totalBytesReceived - auxBuffer.toString(StandardCharsets.UTF_8).lastIndexOf("\r\n\r\n") - 4);
             
             // Convertimos los bytes recibidos a una cadena
@@ -133,7 +136,7 @@ public class WebServer {
                   break;
                
                case "POST":
-                  responseForClient = POSTHandler(request, bodyBuffer);
+                  responseForClient = POSTHandler(request, bodyBuffer, resource);
                   break;
                
                case "PUT":
@@ -268,17 +271,25 @@ public class WebServer {
    
    // La petición HTTP POST se utiliza para enviar datos al servidor para que procese una acción específica. Ej:
    // Enviar datos de un formulario HTML al servidor, agregar un nuevo registro a una base de datos, realizar un pago, autenticar a un usuario, etc.
-   public String POSTHandler(String request, ByteArrayOutputStream bodyBuffer) {
+   public String POSTHandler(String request, ByteArrayOutputStream bodyBuffer, String resource) {
       String[] requestParts = request.split("\r\n");
       int contentLength = 0;
       String bodyRequest = "";
       String contentType = "";
       String response = "";
+      String boundary = "";   // Si la petición es de tipo multipart/form-data
+      Map<String, String> parameters;
       
       // Buscar la cabecera Content-Length en la petición HTTP
       for (String part : requestParts) {
          if (part.contains("Content-Length")) contentLength = Integer.parseInt(part.split(":" )[1].trim());
          if (part.contains("Content-Type")) contentType = part.split(":")[1].trim();
+      }
+      
+      // Si la petición es de tipo multipart/form-data, buscar el boundary
+      if (contentType.contains("multipart/form-data")) {
+         boundary = contentType.split("boundary=")[1];
+         contentType = "multipart/form-data";
       }
       
       System.out.println("Content-Length: " + contentLength);
@@ -290,17 +301,72 @@ public class WebServer {
             case "application/x-www-form-urlencoded":
                // Extraer los parámetros del cuerpo de la petición y agregarlos al cuerpo de la respuesta
                bodyRequest = URLDecoder.decode(request.substring(request.lastIndexOf("\r\n\r\n") + 4), StandardCharsets.UTF_8);
-               Map<String, String> parameters = getParameters(bodyRequest);
+               parameters = getParameters(bodyRequest);
                
                bodyRequest = "";
                for (Map.Entry<String, String> entry : parameters.entrySet()) {
                   bodyRequest += entry.getKey() + ": " + entry.getValue() + "\n";
                }
                
-               bodyRequest = DeleteAcents(bodyRequest);
-               response = CreateHead(200, "text/plain", bodyRequest.length());
-               response += bodyRequest;
-               break;
+               if (!resource.equals("/")) {
+                  int statusUpdateForm = updateFormSimulation(resource.substring(1), parameters);
+                  if (statusUpdateForm == 200) {
+                     bodyRequest = "Formulario actualizado";
+                     response = CreateHead(200, "text/plain", bodyRequest.length());
+                     response += bodyRequest;
+                  } else {
+                     bodyRequest = "Formulario no encontrado";
+                     response = CreateHead(404, "text/plain", bodyRequest.length());
+                     response += bodyRequest;
+                  }
+                  break;
+               } else {
+                  bodyRequest = DeleteAcents(bodyRequest);
+                  response = CreateHead(200, "text/plain", bodyRequest.length());
+                  response += bodyRequest;
+                  break;
+               }
+               
+            case "multipart/form-data":
+               // Construir una cadena en formato nombre=valor&nombre2=valor2
+               String[] parts = request.split("--" + boundary);
+               
+               for (String part : parts) {
+                  if (part.contains("Content-Disposition")) {
+                     String[] disposition = part.split("\r\n");
+                     String name = disposition[1].split("name=\"")[1].split("\"")[0];
+                     String value = part.substring(part.indexOf("\r\n\r\n") + 4, part.lastIndexOf("\r\n"));
+                     bodyRequest += name + "=" + value + "&";
+                  }
+               }
+               bodyRequest = bodyRequest.substring(0, bodyRequest.length() - 1); // Eliminar el último &
+               
+               parameters = getParameters(bodyRequest);
+               
+               bodyRequest = "";
+               for (Map.Entry<String, String> entry : parameters.entrySet()) {
+                  bodyRequest += entry.getKey() + ": " + entry.getValue() + "\n";
+               }
+               
+               if (!resource.equals("/")) {
+                  int statusUpdateForm = updateFormSimulation(resource.substring(1), parameters);  // Eliminar la barra inicial
+                  if (statusUpdateForm == 200) {
+                     bodyRequest = "Formulario actualizado";
+                     response = CreateHead(200, "text/plain", bodyRequest.length());
+                     response += bodyRequest;
+                  } else {
+                     bodyRequest = "Formulario no encontrado";
+                     response = CreateHead(404, "text/plain", bodyRequest.length());
+                     response += bodyRequest;
+                  }
+                  break;
+               } else {
+                  bodyRequest = DeleteAcents(bodyRequest);
+                  response = CreateHead(200, "text/plain", bodyRequest.length());
+                  response += bodyRequest;
+                  break;
+               }
+            
             
             case "application/json":
                bodyRequest = URLDecoder.decode(request.substring(request.lastIndexOf("\r\n\r\n") + 4), StandardCharsets.UTF_8);
@@ -346,11 +412,26 @@ public class WebServer {
                break;
                
             case "text/plain":
-               bodyRequest = URLDecoder.decode(request.substring(request.lastIndexOf("\r\n\r\n") + 4), StandardCharsets.UTF_8);
-               bodyRequest = DeleteAcents(bodyRequest);
-               response = CreateHead(200, "text/plain", bodyRequest.length());
-               response += bodyRequest;
-               break;
+               if (!resource.equals("/")) {
+                  int statusUpdateFile = updateFileText(resource.substring(1), URLDecoder.decode(request.substring(request.lastIndexOf("\r\n\r\n") + 4), StandardCharsets.UTF_8));
+                  if (statusUpdateFile == 200) {
+                     bodyRequest = "Archivo actualizado";
+                     response = CreateHead(200, "text/plain", bodyRequest.length());
+                     response += bodyRequest;
+                  } else {
+                     bodyRequest = "Archivo no encontrado";
+                     response = CreateHead(404, "text/plain", bodyRequest.length());
+                     response += bodyRequest;
+                  }
+                  break;
+               } else {
+                  bodyRequest = URLDecoder.decode(request.substring(request.lastIndexOf("\r\n\r\n") + 4), StandardCharsets.UTF_8);
+                  bodyRequest = DeleteAcents(bodyRequest);
+                  response = CreateHead(200, "text/plain", bodyRequest.length());
+                  response += bodyRequest;
+                  break;
+               }
+               
                
             default:
                bodyRequest = "Como el tipo de contenido no es soportado, se almacenara en el servidor";
@@ -444,8 +525,83 @@ public class WebServer {
          e.printStackTrace();
       }
    }
-
    
+   public int updateFormSimulation(String form, Map<String, String> parameters) {
+      // Abrir el archivo form.txt y gaurdar su contenido en una cadena
+      String formFileName = form + ".txt";
+      File file = new File(formFileName);
+      
+      if (file.exists()) {
+         // Leer el contenido del archivo
+         String formContent = "";
+         Map<String, String> formParameters = new HashMap<>();
+         
+         try (BufferedReader reader = new BufferedReader(new FileReader(formFileName))) {
+            String line;
+            while ((line = reader.readLine()) != null) {
+               formContent += line + "\n";
+               String[] keyValue = line.split(":");
+               
+               if (keyValue.length == 2) {
+                  formParameters.put(keyValue[0].trim(), keyValue[1].trim());
+               } else {
+                  formParameters.put(keyValue[0], "");
+               }
+            }
+         } catch (IOException e) {
+            e.printStackTrace();
+         }
+         
+         System.out.println("\nParámetros del formulario existente:");
+         for (Map.Entry<String, String> entry : formParameters.entrySet()) {
+            System.out.println(entry.getKey() + ": " + entry.getValue());
+         }
+
+         System.out.println("\nParámetros del formulario entrante:");
+         for (Map.Entry<String, String> entry : parameters.entrySet()) {
+            System.out.println(entry.getKey() + ": " + entry.getValue());
+         }
+
+         // Actualizar los parámetros del formulario existente con los nuevos parámetros
+         for (Map.Entry<String, String> entry : parameters.entrySet()) {
+            formParameters.put(entry.getKey(), entry.getValue());
+         }
+
+         System.out.println("\nParámetros del formulario actualizado:");
+         for (Map.Entry<String, String> entry : formParameters.entrySet()) {
+            System.out.println(entry.getKey() + ": " + entry.getValue());
+         }
+         
+         // Guardar los parámetros actualizados en el archivo
+         try (BufferedWriter writer = new BufferedWriter(new FileWriter(formFileName))) {
+            for (Map.Entry<String, String> entry : formParameters.entrySet()) {
+               writer.write(entry.getKey() + ": " + entry.getValue() + "\n");
+            }
+         } catch (IOException e) {
+            e.printStackTrace();
+         }
+         return 200;
+      } else {
+         return 404;
+      }
+   }
+   
+   public int updateFileText(String fileName, String text) {
+      // Actualizar el contenido de un archivo solo si existe y es de texto
+      File file = new File(fileName);
+      
+      if (file.exists() && file.isFile() && fileName.contains(".txt")) {
+         try (BufferedWriter writer = new BufferedWriter(new FileWriter(fileName))) {
+            writer.write(text);
+         } catch (IOException e) {
+            e.printStackTrace();
+         }
+         return 200;
+      } else {
+         return 404;
+      }
+   }
+
    // Metodo para obtener la clave de un valor en un mapa, util para extraer la extensión de un archivo a partir de su mime type
    public static String getKeyByValue(Map<String, String> map, String value) {
       for (Map.Entry<String, String> entry : map.entrySet()) {

@@ -1,0 +1,7 @@
+dasd: aaaaa
+Nombre: Jesus
+Edad: 21
+Apellido: 
+Direccion: 
+Juego: Residen Evil 2
+Jairo: Jesus

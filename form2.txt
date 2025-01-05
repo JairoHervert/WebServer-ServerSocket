@@ -1,0 +1,8 @@
+Nombre: 
+Edad: 
+Genero: 
+mascota: perros
+Region: mexico
+Apellido: 
+Direccion: 
+Juego: Residen Evil 2
