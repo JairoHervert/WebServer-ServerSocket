@@ -1,6 +1,8 @@
 dasd: aaaaa
 Nombre: Jesus
+yy: s
 Edad: 21
+zzzz: das
 Apellido: 
 Direccion: 
 Juego: Residen Evil 2

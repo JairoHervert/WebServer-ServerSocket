@@ -118,7 +118,7 @@ public class WebServer {
             if (firstHeadParts.length != 3) {
                System.err.println("Solicitud HTTP mal formada.");
                
-               String badRequestResponse = CreateHead(400, "text/plain", 0);
+               String badRequestResponse = createHead(400, "text/plain", 0);
                badRequestResponse += "Solicitud HTTP mal formada";
                
                dataOutput.write(badRequestResponse.getBytes(StandardCharsets.UTF_8));
@@ -134,19 +134,19 @@ public class WebServer {
             
             switch (method) {
                case "GET":
-                  responseForClient = GETHandler(resource, dataOutput);
+                  responseForClient = getHandler(resource, dataOutput);
                   break;
                
                case "POST":
-                  responseForClient = POSTHandler(request, bodyBuffer, resource);
+                  responseForClient = postHandler(request, bodyBuffer, resource);
                   break;
                
                case "PUT":
-                  responseForClient = PUTHandler(request, resource, bodyBuffer);
+                  responseForClient = putHandler(request, resource, bodyBuffer);
                   break;
                
                case "DELETE":
-                  responseForClient = DELETEHandler(resource);
+                  responseForClient = deleteHandler(resource);
                   break;
                   
                case "HEAD":
@@ -199,7 +199,7 @@ public class WebServer {
       return params;
    }
    
-   public String GETHandler(String resource, DataOutputStream dataOutput) {
+   public String getHandler(String resource, DataOutputStream dataOutput) {
       String response = "";
       String bodyResponse = "";
       
@@ -218,8 +218,8 @@ public class WebServer {
          }
          
          // Crear la respuesta HTTP
-         bodyResponse = DeleteAcents(bodyResponse);
-         response = CreateHead(200, "text/plain", bodyResponse.length());
+         bodyResponse = deleteAcents(bodyResponse);
+         response = createHead(200, "text/plain", bodyResponse.length());
          response += bodyResponse;
          return response;
       }
@@ -227,7 +227,7 @@ public class WebServer {
       // Si no hay parámetros, se envía el archivo solicitado o el index.html
       if (resource.equals("/") || resource.equals("/index.html") || resource.equals("/index.htm") || resource == null) {
          // Enviar el archivo index.html
-         SendFile("index.html", dataOutput);
+         sendFile("index.html", dataOutput);
 
       } else {
          resource = resource.substring(1); // Eliminar la barra inicial
@@ -237,7 +237,7 @@ public class WebServer {
          // si el archivo existe y el ultimo caracter del recurso es No es un slash entonces se envia el archivo
          if (file.exists() && file.isFile() && resource.charAt(resource.length() - 1) != '/') {
             // Enviar el archivo
-            SendFile(resource, dataOutput);
+            sendFile(resource, dataOutput);
             
          } else if (file.exists() && file.isDirectory() && resource.charAt(resource.length() - 1) == '/') { // Si el recurso es un directorio y termina en /
             // Obtener la lista de archivos del directorio
@@ -248,17 +248,17 @@ public class WebServer {
                bodyResponse += fileName + "\n";
             }
             
-            bodyResponse = DeleteAcents(bodyResponse);
-            response = CreateHead(200, "text/plain", bodyResponse.length());
+            bodyResponse = deleteAcents(bodyResponse);
+            response = createHead(200, "text/plain", bodyResponse.length());
             response += bodyResponse;
             
          } else if (file.exists() && file.isDirectory() && resource.charAt(resource.length() - 1) != '/') { // Si el recurso es un directorio y no termina en /
             // Simulación de redireccionamiento
-            response = CreateHeadRedirect(301, "text/plain", 0, resource);
+            response = createHeadRedirect(301, "text/plain", 0, resource);
          } else {
             System.out.println("Archivo no encontrado: " + file.getName());
             bodyResponse = "Archivo o recurso no encontrado";
-            response = CreateHead(404, "text/plain", bodyResponse.length());
+            response = createHead(404, "text/plain", bodyResponse.length());
             response += bodyResponse;
          }
       }
@@ -269,7 +269,7 @@ public class WebServer {
    
    // La petición HTTP POST se utiliza para enviar datos al servidor para que procese una acción específica. Ej:
    // Enviar datos de un formulario HTML al servidor, agregar un nuevo registro a una base de datos, realizar un pago, autenticar a un usuario, etc.
-   public String POSTHandler(String request, ByteArrayOutputStream bodyBuffer, String resource) {
+   public String postHandler(String request, ByteArrayOutputStream bodyBuffer, String resource) {
       String[] requestParts = request.split("\r\n");
       int contentLength = 0;
       String bodyRequest = "";
@@ -310,17 +310,17 @@ public class WebServer {
                   int statusUpdateForm = updateFormSimulation(resource.substring(1), parameters);
                   if (statusUpdateForm == 200) {
                      bodyRequest = "Formulario actualizado";
-                     response = CreateHead(200, "text/plain", bodyRequest.length());
+                     response = createHead(200, "text/plain", bodyRequest.length());
                      response += bodyRequest;
                   } else {
                      bodyRequest = "Formulario no encontrado";
-                     response = CreateHead(404, "text/plain", bodyRequest.length());
+                     response = createHead(404, "text/plain", bodyRequest.length());
                      response += bodyRequest;
                   }
                   break;
                } else {
-                  bodyRequest = DeleteAcents(bodyRequest);
-                  response = CreateHead(200, "text/plain", bodyRequest.length());
+                  bodyRequest = deleteAcents(bodyRequest);
+                  response = createHead(200, "text/plain", bodyRequest.length());
                   response += bodyRequest;
                   break;
                }
@@ -350,17 +350,17 @@ public class WebServer {
                   int statusUpdateForm = updateFormSimulation(resource.substring(1), parameters);  // Eliminar la barra inicial
                   if (statusUpdateForm == 200) {
                      bodyRequest = "Formulario actualizado";
-                     response = CreateHead(200, "text/plain", bodyRequest.length());
+                     response = createHead(200, "text/plain", bodyRequest.length());
                      response += bodyRequest;
                   } else {
                      bodyRequest = "Formulario no encontrado";
-                     response = CreateHead(404, "text/plain", bodyRequest.length());
+                     response = createHead(404, "text/plain", bodyRequest.length());
                      response += bodyRequest;
                   }
                   break;
                } else {
-                  bodyRequest = DeleteAcents(bodyRequest);
-                  response = CreateHead(200, "text/plain", bodyRequest.length());
+                  bodyRequest = deleteAcents(bodyRequest);
+                  response = createHead(200, "text/plain", bodyRequest.length());
                   response += bodyRequest;
                   break;
                }
@@ -369,8 +369,8 @@ public class WebServer {
             case "application/json":
                bodyRequest = URLDecoder.decode(request.substring(request.lastIndexOf("\r\n\r\n") + 4), StandardCharsets.UTF_8);
                if (isValidJson(bodyRequest)) {
-                  bodyRequest = DeleteAcents(bodyRequest);
-                  response = CreateHead(200, "application/json", bodyRequest.length());
+                  bodyRequest = deleteAcents(bodyRequest);
+                  response = createHead(200, "application/json", bodyRequest.length());
                   response += bodyRequest;
                   
                   // Guardar el archivo JSON en el servidor
@@ -378,7 +378,7 @@ public class WebServer {
                   
                } else {
                   bodyRequest = "JSON mal formado";
-                  response = CreateHead(400, "text/plain", bodyRequest.length());
+                  response = createHead(400, "text/plain", bodyRequest.length());
                   response += bodyRequest;
                }
                break;
@@ -386,12 +386,12 @@ public class WebServer {
             case "application/xml":
                bodyRequest = URLDecoder.decode(request.substring(request.lastIndexOf("\r\n\r\n") + 4), StandardCharsets.UTF_8);
                if (isValidXml(bodyRequest)) {
-                  bodyRequest = DeleteAcents(bodyRequest);
-                  response = CreateHead(200, "application/xml", bodyRequest.length());
+                  bodyRequest = deleteAcents(bodyRequest);
+                  response = createHead(200, "application/xml", bodyRequest.length());
                   response += bodyRequest;
                } else {
                   bodyRequest = "XML mal formado";
-                  response = CreateHead(400, "text/plain", bodyRequest.length());
+                  response = createHead(400, "text/plain", bodyRequest.length());
                   response += bodyRequest;
                }
                break;
@@ -399,12 +399,12 @@ public class WebServer {
             case "text/html":
                bodyRequest = URLDecoder.decode(request.substring(request.lastIndexOf("\r\n\r\n") + 4), StandardCharsets.UTF_8);
                if (isValidHtml(bodyRequest)) {
-                  bodyRequest = DeleteAcents(bodyRequest);
-                  response = CreateHead(200, "text/html", bodyRequest.length());
+                  bodyRequest = deleteAcents(bodyRequest);
+                  response = createHead(200, "text/html", bodyRequest.length());
                   response += bodyRequest;
                } else {
                   bodyRequest = "HTML mal formado";
-                  response = CreateHead(400, "text/plain", bodyRequest.length());
+                  response = createHead(400, "text/plain", bodyRequest.length());
                   response += bodyRequest;
                }
                break;
@@ -414,18 +414,18 @@ public class WebServer {
                   int statusUpdateFile = updateFileText(resource.substring(1), URLDecoder.decode(request.substring(request.lastIndexOf("\r\n\r\n") + 4), StandardCharsets.UTF_8), false);
                   if (statusUpdateFile == 200) {
                      bodyRequest = "Archivo actualizado";
-                     response = CreateHead(200, "text/plain", bodyRequest.length());
+                     response = createHead(200, "text/plain", bodyRequest.length());
                      response += bodyRequest;
                   } else {
                      bodyRequest = "Archivo no encontrado";
-                     response = CreateHead(404, "text/plain", bodyRequest.length());
+                     response = createHead(404, "text/plain", bodyRequest.length());
                      response += bodyRequest;
                   }
                   break;
                } else {
                   bodyRequest = URLDecoder.decode(request.substring(request.lastIndexOf("\r\n\r\n") + 4), StandardCharsets.UTF_8);
-                  bodyRequest = DeleteAcents(bodyRequest);
-                  response = CreateHead(200, "text/plain", bodyRequest.length());
+                  bodyRequest = deleteAcents(bodyRequest);
+                  response = createHead(200, "text/plain", bodyRequest.length());
                   response += bodyRequest;
                   break;
                }
@@ -434,13 +434,13 @@ public class WebServer {
             default:
                bodyRequest = "Como el tipo de contenido no es soportado, se almacenara en el servidor";
                saveFile("archivo_" + System.currentTimeMillis() + "." + getKeyByValue(MIME_TYPES, contentType), bodyBuffer.toByteArray());
-               response = CreateHead(200, "text/plain", bodyRequest.length());
+               response = createHead(200, "text/plain", bodyRequest.length());
                response += bodyRequest;
                break;
          }
       } else {
          bodyRequest = "Peticion POST sin cuerpo";
-         response = CreateHead(400, "text/plain", bodyRequest.length());
+         response = createHead(400, "text/plain", bodyRequest.length());
          response += bodyRequest;
       }
 
@@ -451,14 +451,14 @@ public class WebServer {
    // Generalmente, la URL (o URI) especificada en la petición indica la ubicación exacta del recurso que se está creando o actualizando.
    // Los datos enviados al servidor, usualmente en el cuerpo de la solicitud, deben estar en un formato que el servidor pueda interpretar, json por ejemplo.
    // Ej: Actualizar un recurso, reemplazar un recurso, crear un recurso si no existe, etc.
-   public String PUTHandler(String request, String resource, ByteArrayOutputStream bodyBuffer) {
+   public String putHandler(String request, String resource, ByteArrayOutputStream bodyBuffer) {
       String response = "";
       String bodyRequest = "";
       
       // Si la petición no tiene cuerpo se envía un mensaje de error
       if (bodyBuffer.size() < 1) {
          bodyRequest = "Peticion PUT sin cuerpo";
-         response = CreateHead(400, "text/plain", bodyRequest.length());
+         response = createHead(400, "text/plain", bodyRequest.length());
          response += bodyRequest;
          return response;
       }
@@ -471,7 +471,7 @@ public class WebServer {
       File fileResource = new File(resource);
       if (fileResource.isDirectory()) {
          bodyRequest = "No se puede actualizar un directorio";
-         response = CreateHead(400, "text/plain", bodyRequest.length());
+         response = createHead(400, "text/plain", bodyRequest.length());
          response += bodyRequest;
          return response;
       }
@@ -488,7 +488,7 @@ public class WebServer {
       if (!contentType.equals(MIME_TYPES.get(extension))) {
          System.out.println("El recurso y el Content-Type no coinciden");
          bodyRequest = "El recurso y el Content-Type no coinciden";
-         response = CreateHead(400, "text/plain", bodyRequest.length());
+         response = createHead(400, "text/plain", bodyRequest.length());
          response += bodyRequest;
          return response;
       }
@@ -498,7 +498,7 @@ public class WebServer {
       if (contentType.equals("application/json")) {
          if (!isValidJson(json)) {
             bodyRequest = "JSON mal formado";
-            response = CreateHead(400, "text/plain", bodyRequest.length());
+            response = createHead(400, "text/plain", bodyRequest.length());
             response += bodyRequest;
             return response;
          }
@@ -512,7 +512,7 @@ public class WebServer {
          } catch (IOException e) {
             e.printStackTrace();
             bodyRequest = "Error al crear el archivo";
-            response = CreateHead(500, "text/plain", bodyRequest.length());
+            response = createHead(500, "text/plain", bodyRequest.length());
             response += bodyRequest;
             return response;
          }
@@ -522,12 +522,12 @@ public class WebServer {
       try {
          saveFile(resource, bodyBuffer.toByteArray());
          bodyRequest = "Archivo actualizado";
-         response = CreateHead(200, "text/plain", bodyRequest.length());
+         response = createHead(200, "text/plain", bodyRequest.length());
          response += bodyRequest;
       } catch (Exception e) {
          e.printStackTrace();
          bodyRequest = "Error al guardar el archivo";
-         response = CreateHead(500, "text/plain", bodyRequest.length());
+         response = createHead(500, "text/plain", bodyRequest.length());
          response += bodyRequest;
          return response;
       }
@@ -537,7 +537,7 @@ public class WebServer {
    
    // Las peticiones HTTP DELETE se utilizan para eliminar recursos del servidor. Es una petición idempotente.
    // Ej: Eliminar un recurso, eliminar un registro de una base de datos, eliminar un archivo, etc.
-   public String DELETEHandler(String resource) {
+   public String deleteHandler(String resource) {
       String response = "";
       String bodyResponse = "";
       
@@ -559,33 +559,33 @@ public class WebServer {
          index++;
       }
       resourceFile = resourceFile.substring(0, resourceFile.length() - 1); // Eliminar la última barra
-      resourceToDelete = partsOfResource[indexResourceFile];
       
-      System.out.println("partOfResourceFile = " + indexResourceFile);
-      System.out.println("resourceLength = " + partsOfResource.length);
+//      System.out.println("partOfResourceFile = " + indexResourceFile);
+//      System.out.println("resourceLength = " + partsOfResource.length);
       System.out.println("archivo principal = " + resourceFile);
-      System.out.println("archivo a eliminar = " + resourceToDelete);
       
       // si el archivo principal (con extension) no es el ultimo recurso, debemos eliminar un dato de un archivo txt o json
       // si el archivo principal (con extension) es el ultimo recurso, se elimina el archivo
       if (indexResourceFile < partsOfResource.length) {
+         resourceToDelete = partsOfResource[indexResourceFile];
+         System.out.println("archivo a eliminar = " + resourceToDelete);
          if (resourceFile.endsWith(".txt")) {
             response = deleteDataFromFile(resourceFile, resourceToDelete);
             
          } else if (resourceFile.endsWith(".json")) {
             if (deleteDataFromJsonFile(new File(resourceFile), resourceToDelete)) {
                bodyResponse = "Dato eliminado del archivo JSON";
-               response = CreateHead(200, "text/plain", bodyResponse.length());
+               response = createHead(200, "text/plain", bodyResponse.length());
                response += bodyResponse;
             } else {
                bodyResponse = "Clave no encontrada en el archivo JSON";
-               response = CreateHead(404, "text/plain", bodyResponse.length());
+               response = createHead(404, "text/plain", bodyResponse.length());
                response += bodyResponse;
             }
             
          } else {
             bodyResponse = "No se puede eliminar datos de un archivo de este tipo";
-            response = CreateHead(400, "text/plain", bodyResponse.length());
+            response = createHead(400, "text/plain", bodyResponse.length());
             response += bodyResponse;
          }
          
@@ -596,7 +596,7 @@ public class WebServer {
          File file = new File(resource);
          if (file.isDirectory()) {
             bodyResponse = "Por medidas de seguridad, no se permite eliminar directorios";
-            response = CreateHead(400, "text/plain", bodyResponse.length());
+            response = createHead(400, "text/plain", bodyResponse.length());
             response += bodyResponse;
             return response;
          }
@@ -604,7 +604,7 @@ public class WebServer {
          // Si el archivo no existe, se envía un mensaje de error
          if (!file.exists()) {
             bodyResponse = "Archivo no encontrado";
-            response = CreateHead(404, "text/plain", bodyResponse.length());
+            response = createHead(404, "text/plain", bodyResponse.length());
             response += bodyResponse;
             return response;
          }
@@ -612,12 +612,12 @@ public class WebServer {
          // Si el archivo existe, se elimina
          if (file.delete()) {
             bodyResponse = "Archivo eliminado";
-            response = CreateHead(200, "text/plain", bodyResponse.length());
+            response = createHead(200, "text/plain", bodyResponse.length());
             response += bodyResponse;
             return response;
          } else {
             bodyResponse = "Error al eliminar el archivo";
-            response = CreateHead(500, "text/plain", bodyResponse.length());
+            response = createHead(500, "text/plain", bodyResponse.length());
             response += bodyResponse;
             return response;
          }
@@ -635,9 +635,9 @@ public class WebServer {
       if (resource.equals("/") || resource.equals("/index.html") || resource.equals("/index.htm") || resource == null) {
          File file = new File("index.html");
          if (file.exists() && file.isFile()) {
-            response = CreateHead(200, "text/html", file.length());
+            response = createHead(200, "text/html", file.length());
          } else {
-            response = CreateHead(404, "text/plain", 0);
+            response = createHead(404, "text/plain", 0);
          }
          return response;
       }
@@ -649,22 +649,21 @@ public class WebServer {
       
       if (file.isDirectory()) {
          // Si el recurso es un directorio, devolver un error 403 Forbidden
-         response = CreateHead(403, "text/plain", 0);
+         response = createHead(403, "text/plain", 0);
       } else if (file.exists() && file.isFile()) {
          // Si el archivo existe, devolver 200 con los detalles
          String mimeType = MIME_TYPES.get(resource.substring(resource.lastIndexOf(".") + 1));
          if (mimeType == null) {
             mimeType = "application/octet-stream"; // Tipo genérico si no está en el mapa
          }
-         response = CreateHead(200, mimeType, file.length());
+         response = createHead(200, mimeType, file.length());
       } else {
          // Si el archivo no existe, devolver 404 Not Found
-         response = CreateHead(404, "text/plain", 0);
+         response = createHead(404, "text/plain", 0);
       }
       
       return response;
    }
-
    
    public String deleteDataFromFile(String fileName, String dataToDelete) {
       File file = new File(fileName);
@@ -693,11 +692,11 @@ public class WebServer {
          }
          
          bodyResponse = "Datos eliminados del archivo";
-         response = CreateHead(200, "text/plain", bodyResponse.length());
+         response = createHead(200, "text/plain", bodyResponse.length());
          response += bodyResponse;
       } else {
          bodyResponse = "Archivo no encontrado";
-         response = CreateHead(404, "text/plain", bodyResponse.length());
+         response = createHead(404, "text/plain", bodyResponse.length());
          response += bodyResponse;
       }
       
@@ -739,14 +738,13 @@ public class WebServer {
       return found; // Devuelve si la clave fue encontrada y eliminada
    }
    
-   
    // Metodo para eliminar acentos y caracteres especiales de una cadena de texto. Util para evitar problemas con el envio de respuestas HTTP
-   public String DeleteAcents(String text) {
+   public String deleteAcents(String text) {
       return Normalizer.normalize(text, Normalizer.Form.NFD).replaceAll("[^\\p{ASCII}]", "");
    }
    
    // Metodo para crear una respuesta HTTP (cabecera)
-   public String CreateHead(int statusCode, String mimeType, long fileSize) {
+   public String createHead(int statusCode, String mimeType, long fileSize) {
       return "HTTP/1.1 " + statusCode + " " + HTTP_STATUS_CODES.get(statusCode) + "\r\n"
               + "Server: Hervert Server/1.0\r\n"
               + "Date: " + new Date() + "\r\n"
@@ -757,7 +755,7 @@ public class WebServer {
    }
    
    // Metodo para crear una respuesta HTTP (cabecera) para redireccionamiento
-   public String CreateHeadRedirect(int statusCode, String mimeType, long fileSize, String location) {
+   public String createHeadRedirect(int statusCode, String mimeType, long fileSize, String location) {
          return "HTTP/1.1 " + statusCode + " " + HTTP_STATUS_CODES.get(statusCode) + "\r\n"
                + "Server: Hervert Server/1.0\r\n"
                + "Date: " + new Date() + "\r\n"
@@ -769,7 +767,7 @@ public class WebServer {
    }
    
    // Metodo para enviar un archivo al cliente (GET)
-   public void SendFile (String fileToSend, DataOutputStream dataOutput) {
+   public void sendFile(String fileToSend, DataOutputStream dataOutput) {
       try {
          int bytesRead = 0;
          byte[] buffer = new byte[1024];
@@ -789,7 +787,7 @@ public class WebServer {
          System.out.println("Mime type: " + mimeType);
          
          // Crear la respuesta HTTP
-         String response = CreateHead(200, mimeType, file.length());
+         String response = createHead(200, mimeType, file.length());
          
          // Enviar la respuesta HTTP sin el archivo
          dataOutput.write(response.getBytes(StandardCharsets.UTF_8));
