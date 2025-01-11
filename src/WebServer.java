@@ -1,7 +1,8 @@
-import java.io.ByteArrayOutputStream;
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.IOException;
+import com.google.gson.JsonParser;
+
+import javax.xml.parsers.DocumentBuilder;
+import javax.xml.parsers.DocumentBuilderFactory;
+import java.io.*;
 import java.net.InetSocketAddress;
 import java.net.SocketAddress;
 import java.net.URLDecoder;
@@ -134,10 +135,12 @@ public class WebServer {
             ByteArrayOutputStream bufferBAOS = new ByteArrayOutputStream();
             
             int bytesRead;
+            int totalBytesRead = 0;
             while ((bytesRead = clientChannel.read(bufferByte)) > 0) {
                bufferByte.flip();
-               bufferBAOS.write(bufferByte.array(), 0, bufferByte.limit());
+               bufferBAOS.write(bufferByte.array(), 0, bytesRead);
                bufferByte.clear();
+               totalBytesRead += bytesRead;
             }
             
             if (bytesRead == -1) {
@@ -155,6 +158,9 @@ public class WebServer {
             String[] requestParts = request.split("\r\n\r\n", 2);
             String headers = requestParts[0];
             String body = requestParts.length > 1 ? requestParts[1] : "";
+            
+            ByteArrayOutputStream bodyBuffer = new ByteArrayOutputStream();
+            bodyBuffer.write(bufferBAOS.toByteArray(), bufferBAOS.toString().indexOf("\r\n\r\n") + 4, totalBytesRead - bufferBAOS.toString().indexOf("\r\n\r\n") - 4);
             
             String[] headerLines = headers.split("\r\n");   // separa todas las cabeceras en String individuales
             
@@ -177,14 +183,7 @@ public class WebServer {
                   httpResponse = getHandler(resource, clientChannel);
                   break;
                case "POST":
-                  responseBody = "Hello desde un POST del servidor!";
-                  httpResponse = ""
-                          + "HTTP/1.1 201 OK\r\n"
-                          + "Content-Type: text/plain\r\n"
-                          + "Content-Length: " + responseBody.length() + "\r\n"
-                          + "Connection: close\r\n"
-                          + "\r\n"
-                          + responseBody;
+                  httpResponse = postHandler(request, bodyBuffer, resource);
                   
                   break;
                
@@ -322,8 +321,320 @@ public class WebServer {
       return response;
    }
    
+   // La petición HTTP POST se utiliza para enviar datos al servidor para que procese una acción específica. Ej:
+   // Enviar datos de un formulario HTML al servidor, agregar un nuevo registro a una base de datos, realizar un pago, autenticar a un usuario, etc.
+   public static String postHandler(String request, ByteArrayOutputStream bodyBuffer, String resource) {
+      String[] requestParts = request.split("\r\n");
+      int contentLength = 0;
+      String bodyRequest = "";
+      String contentType = "";
+      String response = "";
+      String boundary = "";   // Si la petición es de tipo multipart/form-data
+      Map<String, String> parameters;
+      
+      // Buscar la cabecera Content-Length en la petición HTTP
+      for (String part : requestParts) {
+         if (part.contains("Content-Length")) contentLength = Integer.parseInt(part.split(":" )[1].trim());
+         if (part.contains("Content-Type")) contentType = part.split(":")[1].trim();
+      }
+      
+      // Si la petición es de tipo multipart/form-data, buscar el boundary
+      if (contentType.contains("multipart/form-data")) {
+         boundary = contentType.split("boundary=")[1];
+         contentType = "multipart/form-data";
+      }
+      
+      System.out.println("Content-Length: " + contentLength);
+      System.out.println("Content-Type: " + contentType);
+      
+      // Si la petición tiene cuerpo crear una respuesta según el tipo de contenido
+      if (contentLength > 0) {
+         switch (contentType) {
+            case "application/x-www-form-urlencoded":
+               // Extraer los parámetros del cuerpo de la petición y agregarlos al cuerpo de la respuesta
+               bodyRequest = URLDecoder.decode(request.substring(request.lastIndexOf("\r\n\r\n") + 4), StandardCharsets.UTF_8);
+               parameters = getParameters(bodyRequest);
+               
+               bodyRequest = "";
+               for (Map.Entry<String, String> entry : parameters.entrySet()) {
+                  bodyRequest += entry.getKey() + ": " + entry.getValue() + "\n";
+               }
+               
+               if (!resource.equals("/")) {
+                  int statusUpdateForm = updateFormSimulation(resource.substring(1), parameters);
+                  if (statusUpdateForm == 200) {
+                     bodyRequest = "Formulario actualizado";
+                     response = createHead(200, "text/plain", bodyRequest.length());
+                     response += bodyRequest;
+                  } else {
+                     bodyRequest = "Formulario no encontrado";
+                     response = createHead(404, "text/plain", bodyRequest.length());
+                     response += bodyRequest;
+                  }
+                  break;
+               } else {
+                  bodyRequest = deleteAcents(bodyRequest);
+                  response = createHead(200, "text/plain", bodyRequest.length());
+                  response += bodyRequest;
+                  break;
+               }
+            
+            case "multipart/form-data":
+               // Construir una cadena en formato nombre=valor&nombre2=valor2
+               String[] parts = request.split("--" + boundary);
+               
+               for (String part : parts) {
+                  if (part.contains("Content-Disposition")) {
+                     String[] disposition = part.split("\r\n");
+                     String name = disposition[1].split("name=\"")[1].split("\"")[0];
+                     String value = part.substring(part.indexOf("\r\n\r\n") + 4, part.lastIndexOf("\r\n"));
+                     bodyRequest += name + "=" + value + "&";
+                  }
+               }
+               bodyRequest = bodyRequest.substring(0, bodyRequest.length() - 1); // Eliminar el último &
+               
+               parameters = getParameters(bodyRequest);
+               
+               bodyRequest = "";
+               for (Map.Entry<String, String> entry : parameters.entrySet()) {
+                  bodyRequest += entry.getKey() + ": " + entry.getValue() + "\n";
+               }
+               
+               if (!resource.equals("/")) {
+                  int statusUpdateForm = updateFormSimulation(resource.substring(1), parameters);  // Eliminar la barra inicial
+                  if (statusUpdateForm == 200) {
+                     bodyRequest = "Formulario actualizado";
+                     response = createHead(200, "text/plain", bodyRequest.length());
+                     response += bodyRequest;
+                  } else {
+                     bodyRequest = "Formulario no encontrado";
+                     response = createHead(404, "text/plain", bodyRequest.length());
+                     response += bodyRequest;
+                  }
+                  break;
+               } else {
+                  bodyRequest = deleteAcents(bodyRequest);
+                  response = createHead(200, "text/plain", bodyRequest.length());
+                  response += bodyRequest;
+                  break;
+               }
+            
+            
+            case "application/json":
+               bodyRequest = URLDecoder.decode(request.substring(request.lastIndexOf("\r\n\r\n") + 4), StandardCharsets.UTF_8);
+               if (isValidJson(bodyRequest)) {
+                  bodyRequest = deleteAcents(bodyRequest);
+                  response = createHead(200, "application/json", bodyRequest.length());
+                  response += bodyRequest;
+                  
+                  // Guardar el archivo JSON en el servidor
+                  //saveFile("archivo" + System.currentTimeMillis() + ".json", bodyRequest.getBytes());
+                  
+               } else {
+                  bodyRequest = "JSON mal formado";
+                  response = createHead(400, "text/plain", bodyRequest.length());
+                  response += bodyRequest;
+               }
+               break;
+            
+            case "application/xml":
+               bodyRequest = URLDecoder.decode(request.substring(request.lastIndexOf("\r\n\r\n") + 4), StandardCharsets.UTF_8);
+               if (isValidXml(bodyRequest)) {
+                  bodyRequest = deleteAcents(bodyRequest);
+                  response = createHead(200, "application/xml", bodyRequest.length());
+                  response += bodyRequest;
+               } else {
+                  bodyRequest = "XML mal formado";
+                  response = createHead(400, "text/plain", bodyRequest.length());
+                  response += bodyRequest;
+               }
+               break;
+            
+            case "text/html":
+               bodyRequest = URLDecoder.decode(request.substring(request.lastIndexOf("\r\n\r\n") + 4), StandardCharsets.UTF_8);
+               if (isValidHtml(bodyRequest)) {
+                  bodyRequest = deleteAcents(bodyRequest);
+                  response = createHead(200, "text/html", bodyRequest.length());
+                  response += bodyRequest;
+               } else {
+                  bodyRequest = "HTML mal formado";
+                  response = createHead(400, "text/plain", bodyRequest.length());
+                  response += bodyRequest;
+               }
+               break;
+            
+            case "text/plain":
+               if (!resource.equals("/")) {
+                  int statusUpdateFile = updateFileText(resource.substring(1), URLDecoder.decode(request.substring(request.lastIndexOf("\r\n\r\n") + 4), StandardCharsets.UTF_8), false);
+                  if (statusUpdateFile == 200) {
+                     bodyRequest = "Archivo actualizado";
+                     response = createHead(200, "text/plain", bodyRequest.length());
+                     response += bodyRequest;
+                  } else {
+                     bodyRequest = "Archivo no encontrado";
+                     response = createHead(404, "text/plain", bodyRequest.length());
+                     response += bodyRequest;
+                  }
+                  break;
+               } else {
+                  bodyRequest = URLDecoder.decode(request.substring(request.lastIndexOf("\r\n\r\n") + 4), StandardCharsets.UTF_8);
+                  bodyRequest = deleteAcents(bodyRequest);
+                  response = createHead(200, "text/plain", bodyRequest.length());
+                  response += bodyRequest;
+                  break;
+               }
+            
+            
+            default:
+               bodyRequest = "Como el tipo de contenido no es soportado, se almacenara en el servidor";
+               saveFile("archivo_" + System.currentTimeMillis() + "." + getKeyByValue(MIME_TYPES, contentType), bodyBuffer.toByteArray());
+               response = createHead(200, "text/plain", bodyRequest.length());
+               response += bodyRequest;
+               break;
+         }
+      } else {
+         bodyRequest = "Peticion POST sin cuerpo";
+         response = createHead(400, "text/plain", bodyRequest.length());
+         response += bodyRequest;
+      }
+      
+      return response;
+   }
    
+   public static int updateFormSimulation(String form, Map<String, String> parameters) {
+      // Abrir el archivo form.txt y gaurdar su contenido en una cadena
+      String formFileName = form;
+      if (!formFileName.endsWith(".txt")) {
+         formFileName += ".txt";
+      }
+      
+      File file = new File(formFileName);
+      
+      if (file.exists()) {
+         // Leer el contenido del archivo
+         String formContent = "";
+         Map<String, String> formParameters = new HashMap<>();
+         
+         try (BufferedReader reader = new BufferedReader(new FileReader(formFileName))) {
+            String line;
+            while ((line = reader.readLine()) != null) {
+               formContent += line + "\n";
+               String[] keyValue = line.split(":");
+               
+               if (keyValue.length == 2) {
+                  formParameters.put(keyValue[0].trim(), keyValue[1].trim());
+               } else {
+                  formParameters.put(keyValue[0], "");
+               }
+            }
+         } catch (IOException e) {
+            e.printStackTrace();
+         }
+         
+         System.out.println("\nParámetros del formulario existente:");
+         for (Map.Entry<String, String> entry : formParameters.entrySet()) {
+            System.out.println(entry.getKey() + ": " + entry.getValue());
+         }
+         
+         System.out.println("\nParámetros del formulario entrante:");
+         for (Map.Entry<String, String> entry : parameters.entrySet()) {
+            System.out.println(entry.getKey() + ": " + entry.getValue());
+         }
+         
+         // Actualizar los parámetros del formulario existente con los nuevos parámetros
+         for (Map.Entry<String, String> entry : parameters.entrySet()) {
+            formParameters.put(entry.getKey(), entry.getValue());
+         }
+         
+         System.out.println("\nParámetros del formulario actualizado:");
+         for (Map.Entry<String, String> entry : formParameters.entrySet()) {
+            System.out.println(entry.getKey() + ": " + entry.getValue());
+         }
+         
+         // Guardar los parámetros actualizados en el archivo
+         try (BufferedWriter writer = new BufferedWriter(new FileWriter(formFileName))) {
+            for (Map.Entry<String, String> entry : formParameters.entrySet()) {
+               writer.write(entry.getKey() + ": " + entry.getValue() + "\n");
+            }
+         } catch (IOException e) {
+            e.printStackTrace();
+         }
+         return 200;
+      } else {
+         return 404;
+      }
+   }
    
+   public static int updateFileText(String fileName, String text, boolean replace) {
+      // Actualizar el contenido de un archivo solo si existe y es de texto
+      File file = new File(fileName);
+      
+      if (file.exists() && file.isFile() && fileName.endsWith(".txt")) { // Mejor usar endsWith para mayor precisión
+         try (BufferedWriter writer = new BufferedWriter(new FileWriter(file, !replace))) {
+            // Si replace es true, el archivo se abre en modo de sobrescritura.
+            // Si replace es false, el archivo se abre en modo de append.
+            writer.write(text);
+         } catch (IOException e) {
+            e.printStackTrace();
+            return 500; // Código de error para problemas del servidor
+         }
+         return 200; // Código de éxito
+      } else {
+         return 404; // Código de error para archivo no encontrado
+      }
+   }
+   
+   // Metodo para obtener la clave de un valor en un mapa, util para extraer la extensión de un archivo a partir de su mime type
+   public static String getKeyByValue(Map<String, String> map, String value) {
+      for (Map.Entry<String, String> entry : map.entrySet()) {
+         if (entry.getValue().equals(value)) {
+            return entry.getKey();
+         }
+      }
+      return "";  // Si no se encuentra el valor, se retorna una cadena vacía
+   }
+   
+   public static boolean isValidJson(String json) {
+      try {
+         JsonParser.parseString(json);
+         return true;
+      } catch (Exception e) {
+         return false;
+      }
+   }
+   
+   public static boolean isValidHtml(String html) {
+      try {
+         return html.contains("!DOCTYPE html") &&
+                 html.contains("<html") &&
+                 html.contains("<head>") &&
+                 html.contains("<body>") &&
+                 html.contains("</body>") &&
+                 html.contains("</head>") &&
+                 html.contains("</html>");
+      } catch (Exception e) {
+         return false;
+      }
+   }
+   
+   public static boolean isValidXml(String xml) {
+      try {
+         DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
+         DocumentBuilder builder = factory.newDocumentBuilder();
+         builder.parse(new ByteArrayInputStream(xml.getBytes()));
+         return true;
+      } catch (Exception e) {
+         return false;
+      }
+   }
+   
+   public static void saveFile(String fileName, byte[] fileBytes) {
+      try (FileOutputStream fileOutput = new FileOutputStream(fileName)) {
+         fileOutput.write(fileBytes);
+      } catch (IOException e) {
+         e.printStackTrace();
+      }
+   }
    
    
    // Metodo para eliminar acentos y caracteres especiales de una cadena de texto. Util para evitar problemas con el envio de respuestas HTTP

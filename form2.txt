@@ -1,8 +1,10 @@
 Nombre: 
+a: s
 Edad: 
 Genero: 
-mascota: perros
+mascota: laagrto
 Region: mexico
 Apellido: 
 Direccion: 
 Juego: Residen Evil 2
+aaaa: ddd
