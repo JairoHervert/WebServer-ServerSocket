@@ -174,7 +174,7 @@ public class WebServer {
             
             switch (method) {
                case "GET":
-                  httpResponse = getHandler(resource);
+                  httpResponse = getHandler(resource, clientChannel);
                   break;
                case "POST":
                   responseBody = "Hello desde un POST del servidor!";
@@ -254,7 +254,7 @@ public class WebServer {
    }
    
    
-   public static String getHandler(String resource) {
+   public static String getHandler(String resource, SocketChannel client ) throws IOException {
       String response = "";
       String bodyResponse = "";
       
@@ -282,10 +282,7 @@ public class WebServer {
       // Si no hay parámetros, se envía el archivo solicitado o el index.html
       if (resource.equals("/") || resource.equals("/index.html") || resource.equals("/index.htm") || resource == null) {
          // Enviar el archivo index.html
-         //sendFile("index.html", dataOutput);
-         bodyResponse = "Enviando archivo index.html";
-         response = createHead(200, "text/plain", bodyResponse.length());
-         response += bodyResponse;
+         sendFile(client, "index.html");
          
       } else {
          resource = resource.substring(1); // Eliminar la barra inicial
@@ -295,10 +292,7 @@ public class WebServer {
          // si el archivo existe y el ultimo caracter del recurso es No es un slash entonces se envia el archivo
          if (file.exists() && file.isFile() && resource.charAt(resource.length() - 1) != '/') {
             // Enviar el archivo
-            //sendFile(resource, dataOutput);
-            bodyResponse = "Enviando archivo: " + resource;
-            response = createHead(200, "text/plain", bodyResponse.length());
-            response += bodyResponse;
+            sendFile(client, resource);
             
          } else if (file.exists() && file.isDirectory() && resource.charAt(resource.length() - 1) == '/') { // Si el recurso es un directorio y termina en /
             // Obtener la lista de archivos del directorio
@@ -383,5 +377,46 @@ public class WebServer {
    }
    
    // Metodo para enviar un archivo al cliente (GET)
-   
+   private static void sendFile(SocketChannel clientChannel, String fileToSend) throws IOException {
+      File file = new File(fileToSend);
+      if (!file.exists() || !file.isFile()) {
+         // Manejar el caso de archivo no encontrado
+         String notFound = createHead(404, "text/plain", 0) + "Archivo no encontrado";
+         ByteBuffer notFoundBuffer = ByteBuffer.wrap(notFound.getBytes(StandardCharsets.UTF_8));
+         while (notFoundBuffer.hasRemaining()) {
+            clientChannel.write(notFoundBuffer);
+         }
+         return;
+      }
+      
+      // Determina la extensión y el MIME type usando tu tabla MIME_TYPES
+      String mimeType = "application/octet-stream";
+      int dotIndex = fileToSend.lastIndexOf(".");
+      if (dotIndex != -1) {
+         String extension = fileToSend.substring(dotIndex + 1).toLowerCase();
+         mimeType = MIME_TYPES.getOrDefault(extension, "application/octet-stream");
+      }
+      
+      // Prepara la cabecera HTTP
+      String header = createHead(200, mimeType, file.length());
+      
+      // Envía la cabecera
+      ByteBuffer headerBuffer = ByteBuffer.wrap(header.getBytes(StandardCharsets.UTF_8));
+      while (headerBuffer.hasRemaining()) {
+         clientChannel.write(headerBuffer);
+      }
+      
+      // Envía el archivo en bloques
+      try (FileChannel fileChannel = new FileInputStream(file).getChannel()) {
+         ByteBuffer fileBuffer = ByteBuffer.allocate(8192);
+         int bytesRead;
+         while ((bytesRead = fileChannel.read(fileBuffer)) != -1) {
+            fileBuffer.flip();
+            while (fileBuffer.hasRemaining()) {
+               clientChannel.write(fileBuffer);
+            }
+            fileBuffer.clear();
+         }
+      }
+   }
 }
