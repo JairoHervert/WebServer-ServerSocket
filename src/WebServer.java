@@ -5,14 +5,18 @@ import com.google.gson.JsonParser;
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
 import java.io.*;
+import java.net.InetSocketAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.net.URLDecoder;
+import java.nio.ByteBuffer;
+import java.nio.channels.SelectionKey;
+import java.nio.channels.Selector;
+import java.nio.channels.ServerSocketChannel;
+import java.nio.channels.SocketChannel;
 import java.nio.charset.StandardCharsets;
 import java.text.Normalizer;
-import java.util.Date;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -20,10 +24,14 @@ public class WebServer {
    
    int PORT = 8000;
    private static final int THREAD_POOL_SIZE = 10; // Tamaño del pool de hilos
-   private ServerSocket serverSocket;
+   private ServerSocketChannel serverSocketChannel;
    private ExecutorService threadPool;
    
-   // Tabla de mime types
+   private Selector selector;
+   private int lecturas = 0;
+   private int escrituras = 0;
+   
+   // Tabla de mime types y tabla de códigos de estado HTTP y sus mensajes
    private static final Map<String, String> MIME_TYPES = new HashMap<>() {{
       put("txt", "text/plain");
       put("html", "text/html");
@@ -45,8 +53,6 @@ public class WebServer {
       put("mp3", "audio/mpeg");
       put("tex", "application/x-tex");
    }};
-   
-   // Tabla de códigos de estado HTTP y sus mensajes
    private static final Map<Integer, String> HTTP_STATUS_CODES = new HashMap<>() {{
       put(200, "OK");
       put(301, "Moved Permanently");
@@ -59,20 +65,19 @@ public class WebServer {
    
    
    class Handler implements Runnable {
-      
-      protected Socket socket;
+      private final SocketChannel clientChannel;
       DataOutputStream dataOutput;
       DataInputStream dataInput;
       
-      // asignar el socket recibido a la variable socket del objeto
-      public Handler(Socket _socket) {
-         this.socket = _socket;
+      public Handler(SocketChannel clientChannel) {
+         this.clientChannel = clientChannel;
       }
       
       public void run() {
          try {
-            dataOutput = new DataOutputStream(socket.getOutputStream());
-            dataInput = new DataInputStream(socket.getInputStream());
+            System.out.println("Ejecutando en el hilo: " + Thread.currentThread().getName());
+            dataOutput = new DataOutputStream(clientChannel.socket().getOutputStream());
+            dataInput = new DataInputStream(clientChannel.socket().getInputStream());
             
             ByteArrayOutputStream auxBuffer = new ByteArrayOutputStream();
             ByteArrayOutputStream bodyBuffer = new ByteArrayOutputStream();
@@ -80,7 +85,8 @@ public class WebServer {
             int bytesRead = 0;
             int totalBytesReceived = 0;
             
-            socket.setSoTimeout(3000);
+            // Establecer un tiempo de espera para la recepción de datos
+            clientChannel.socket().setSoTimeout(3000);
             try {
                while (true) {
                   bytesRead = dataInput.read(buffer);
@@ -94,7 +100,8 @@ public class WebServer {
             // Como postman (y algunos navegadores) envían una petición adicional por el keep-alive la desactivamos por ahora
             if (totalBytesReceived < 1) {
                System.out.println("Conexión de keep-alive detectada. Cerrando conexión sin datos...");
-               socket.close();
+               dataOutput.close();
+               clientChannel.close();
                return;
             }
             
@@ -170,7 +177,8 @@ public class WebServer {
          } finally {
             try {
                dataOutput.close();
-               socket.close();
+               dataInput.close();
+               clientChannel.close();
             } catch (IOException e) {
                e.printStackTrace();
             }
@@ -942,20 +950,100 @@ public class WebServer {
    public WebServer() throws IOException {
       System.out.println("\u001B[32mIniciando servidor web...\u001B[0m");
       
+      // Crear el selector
+      this.selector = Selector.open();
+      
       // Crear el socket del servidor y el pool de hilos
-      this.serverSocket = new ServerSocket(PORT);
+      this.serverSocketChannel = ServerSocketChannel.open();
+      this.serverSocketChannel.configureBlocking(false);
+      //this.serverSocketChannel.socket().bind(new InetSocketAddress(PORT));
+      this.serverSocketChannel.bind(new InetSocketAddress(PORT));
+      this.serverSocketChannel.register(selector, SelectionKey.OP_ACCEPT);
+      
+      // Configurar el pool de hilos para procesar las conexiones entrantes
       this.threadPool = Executors.newFixedThreadPool(THREAD_POOL_SIZE);
       
       System.out.println("Servidor web iniciado en el puerto \u001B[32m" + PORT + "\u001B[0m");
       System.out.println("\u001B[34mEsperando conexiones...\n\u001B[0m");
       
       while (true) {
-         Socket socket = serverSocket.accept();
-         System.out.println("Conexión aceptada desde \u001B[35m" + socket.getInetAddress() + "\u001B[0m");
+         // Esperar por eventos
+         selector.select();
          
-         // Asigna la conexión aceptada a un hilo del pool
-         threadPool.execute(new Handler(socket));
+         // Obtener los eventos
+         Set<SelectionKey> selectedKeys = selector.selectedKeys();
+         Iterator<SelectionKey> keyIterator = selectedKeys.iterator();
+         
+         // Procesar los eventos
+         while (keyIterator.hasNext()) {
+            // Obtener el evento actual y remover la clave para evitar procesarla de nuevo
+            SelectionKey key = keyIterator.next();
+            keyIterator.remove();
+            
+            if (key.isAcceptable()) {
+               acceptConnection(key);
+               
+            } else if (key.isReadable()) {
+               readData(key);
+               
+            // Las peticiones de escritura no se manejan en este punto, las procesamos segun el tipo de lectura realizada (GET, POST, PUT, DELETE, HEAD)
+             } else if (key.isWritable()) {
+             writeData(key);
+               
+            } else {
+               System.out.println("Evento no reconocido");
+            }
+            
+         }
       }
+   }
+   
+   
+   private void acceptConnection(SelectionKey key) throws IOException {
+      ServerSocketChannel serverChannel = (ServerSocketChannel) key.channel();
+      SocketChannel clientChannel = serverChannel.accept();
+      
+      clientChannel.configureBlocking(false);
+      clientChannel.register(selector, SelectionKey.OP_READ);
+      
+      System.out.println("Nueva conexión aceptada: " + clientChannel.getRemoteAddress());
+   }
+   
+   private void readData(SelectionKey key) throws IOException {
+      SocketChannel clientChannel = (SocketChannel) key.channel();
+      ByteBuffer buffer = ByteBuffer.allocate(1024);
+      
+      int bytesRead = clientChannel.read(buffer);
+      if (bytesRead == -1) {
+         clientChannel.close();
+         System.out.println("Cliente desconectado.");
+         return;
+      }
+      
+      buffer.flip();
+      String request = new String(buffer.array(), 0, buffer.limit());
+      System.out.println("Datos recibidos: " + request);
+      
+      lecturas++; // Incrementar contador de lecturas
+      
+      // Registrar canal para escribir respuesta
+      key.interestOps(SelectionKey.OP_WRITE);
+      key.attach("HTTP/1.1 202 OK\r\n\r\nHola, mundo!"); // Adjuntar respuesta
+   }
+   
+   private void writeData(SelectionKey key) throws IOException {
+      SocketChannel clientChannel = (SocketChannel) key.channel();
+      String response = (String) key.attachment();
+      
+      ByteBuffer buffer = ByteBuffer.wrap(response.getBytes());
+      clientChannel.write(buffer);
+      
+      escrituras++; // Incrementar contador de escrituras
+      
+      System.out.println("Respuesta enviada.");
+      
+      // Cerrar la conexión después de escribir
+      clientChannel.close();
    }
    
    public static void main(String[] args) throws IOException {

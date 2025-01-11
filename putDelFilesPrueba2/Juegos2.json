@@ -3,13 +3,23 @@
     {
       "titulo": "Resident Evil 2",
       "lanzamiento": 1998,
-      "plataformas": ["PlayStation", "Nintendo 64", "Dreamcast", "PC"],
+      "plataformas": [
+        "PlayStation",
+        "Nintendo 64",
+        "Dreamcast",
+        "PC"
+      ],
       "genero": "Survival Horror"
     },
     {
       "titulo": "Resident Evil 4",
       "lanzamiento": 2005,
-      "plataformas": ["GameCube", "PlayStation 2", "PC", "Wii"],
+      "plataformas": [
+        "GameCube",
+        "PlayStation 2",
+        "PC",
+        "Wii"
+      ],
       "genero": "Acción, Aventura"
     }
   ],
@@ -17,13 +27,19 @@
     {
       "titulo": "Silent Hill",
       "lanzamiento": 1999,
-      "plataformas": ["PlayStation"],
+      "plataformas": [
+        "PlayStation"
+      ],
       "genero": "Survival Horror"
     },
     {
       "titulo": "Silent Hill 2",
       "lanzamiento": 2001,
-      "plataformas": ["PlayStation 2", "Xbox", "PC"],
+      "plataformas": [
+        "PlayStation 2",
+        "Xbox",
+        "PC"
+      ],
       "genero": "Survival Horror"
     }
   ],
@@ -31,13 +47,54 @@
     {
       "titulo": "The Last of Us",
       "lanzamiento": 2013,
-      "plataformas": ["PlayStation 3", "PlayStation 4"],
+      "plataformas": [
+        "PlayStation 3",
+        "PlayStation 4"
+      ],
       "genero": "Acción, Aventura"
     },
     {
       "titulo": "The Last of Us Part II",
       "lanzamiento": 2020,
-      "plataformas": ["PlayStation 4"],
+      "plataformas": [
+        "PlayStation 4"
+      ],
+      "genero": "Acción, Aventura"
+    }
+  ],
+  "Metal Gear": [
+    {
+      "titulo": "Metal Gear Solid",
+      "lanzamiento": 1998,
+      "plataformas": [
+        "PlayStation"
+      ],
+      "genero": "Acción, Aventura"
+    },
+    {
+      "titulo": "Metal Gear Solid 3: Snake Eater",
+      "lanzamiento": 2004,
+      "plataformas": [
+        "PlayStation 2"
+      ],
+      "genero": "Acción, Aventura"
+    }
+  ],
+  "God of War": [
+    {
+      "titulo": "God of War",
+      "lanzamiento": 2005,
+      "plataformas": [
+        "PlayStation 2"
+      ],
+      "genero": "Acción, Aventura"
+    },
+    {
+      "titulo": "God of War (2018)",
+      "lanzamiento": 2018,
+      "plataformas": [
+        "PlayStation 4"
+      ],
       "genero": "Acción, Aventura"
     }
   ]
