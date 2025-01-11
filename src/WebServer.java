@@ -66,11 +66,13 @@ public class WebServer {
    
    class Handler implements Runnable {
       private final SocketChannel clientChannel;
+      SelectionKey key;
       DataOutputStream dataOutput;
       DataInputStream dataInput;
       
-      public Handler(SocketChannel clientChannel) {
+      public Handler(SocketChannel clientChannel, SelectionKey key) {
          this.clientChannel = clientChannel;
+         this.key = key;
       }
       
       public void run() {
@@ -1004,25 +1006,33 @@ public class WebServer {
       SocketChannel clientChannel = serverChannel.accept();
       
       clientChannel.configureBlocking(false);
-      clientChannel.register(selector, SelectionKey.OP_READ);
+      clientChannel.register(selector, SelectionKey.OP_READ | SelectionKey.OP_WRITE);
       
-      System.out.println("Nueva conexión aceptada: " + clientChannel.getRemoteAddress());
+      System.out.println("Nueva conexión aceptada: \u001B[33m" + clientChannel.getRemoteAddress() + "\u001B[0m");
    }
    
    private void readData(SelectionKey key) throws IOException {
       SocketChannel clientChannel = (SocketChannel) key.channel();
-      ByteBuffer buffer = ByteBuffer.allocate(1024);
+      ByteBuffer buffer = ByteBuffer.allocate(65536);
+      ByteArrayOutputStream dataBuffer = new ByteArrayOutputStream();
       
-      int bytesRead = clientChannel.read(buffer);
+      int bytesRead;
+      while ((bytesRead = clientChannel.read(buffer)) > 0) {
+         buffer.flip();
+         byte[] bytes = new byte[buffer.remaining()];
+         buffer.get(bytes);
+         dataBuffer.write(bytes);
+         buffer.clear();
+      }
+      
       if (bytesRead == -1) {
+         System.out.println("Conexión cerrada por el cliente: \u001B[33m" + clientChannel.getRemoteAddress() + "\u001B[0m");
          clientChannel.close();
-         System.out.println("Cliente desconectado.");
          return;
       }
       
-      buffer.flip();
-      String request = new String(buffer.array(), 0, buffer.limit());
-      System.out.println("Datos recibidos: " + request);
+      String request = new String(dataBuffer.toByteArray(), StandardCharsets.UTF_8);
+      System.out.println("\u001B[33mPetición recibida:\n" + request + "\u001B[0m");
       
       lecturas++; // Incrementar contador de lecturas
       
@@ -1035,14 +1045,20 @@ public class WebServer {
       SocketChannel clientChannel = (SocketChannel) key.channel();
       String response = (String) key.attachment();
       
-      ByteBuffer buffer = ByteBuffer.wrap(response.getBytes());
-      clientChannel.write(buffer);
+      if (response == null) {
+         System.out.println("No hay respuesta para enviar.Cerrando conexión.");
+         clientChannel.close();
+         return;
+      }
       
-      escrituras++; // Incrementar contador de escrituras
+      ByteBuffer buffer = ByteBuffer.wrap(response.getBytes(StandardCharsets.UTF_8));
+      while (buffer.hasRemaining()) {
+         clientChannel.write(buffer);
+      }
       
-      System.out.println("Respuesta enviada.");
-      
-      // Cerrar la conexión después de escribir
+      escrituras++;
+      key.interestOps(SelectionKey.OP_READ);
+      System.out.println("\u001B[32mRespuesta enviada: " + response + "\u001B[0m");
       clientChannel.close();
    }
    
