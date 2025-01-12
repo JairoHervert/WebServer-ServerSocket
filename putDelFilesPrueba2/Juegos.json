@@ -1,24 +1,4 @@
 {
-  "Silent Hill": [
-    {
-      "titulo": "Silent Hill",
-      "lanzamiento": 1999,
-      "plataformas": [
-        "PlayStation"
-      ],
-      "genero": "Survival Horror"
-    },
-    {
-      "titulo": "Silent Hill 2",
-      "lanzamiento": 2001,
-      "plataformas": [
-        "PlayStation 2",
-        "Xbox",
-        "PC"
-      ],
-      "genero": "Survival Horror"
-    }
-  ],
   "The Last of Us": [
     {
       "titulo": "The Last of Us",

@@ -1,6 +1,0 @@
-Pedro: 123456789
-Maria: 987654321
-Antonio: 456456456
-Luis: 789789789
-profesor: 123123123
-bomberos: 112
